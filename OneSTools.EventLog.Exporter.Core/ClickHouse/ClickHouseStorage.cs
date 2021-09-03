@@ -13,7 +13,7 @@ namespace OneSTools.EventLog.Exporter.Core.ClickHouse
 {
     public class ClickHouseStorage : IEventLogStorage
     {
-        private const string TableName = "EventLogItems";
+        private string _tableName;
         private readonly ILogger<ClickHouseStorage> _logger;
         private ClickHouseConnection _connection;
         private string _connectionString;
@@ -31,6 +31,7 @@ namespace OneSTools.EventLog.Exporter.Core.ClickHouse
         {
             _logger = logger;
             _connectionString = configuration.GetValue("ClickHouse:ConnectionString", "");
+            _tableName = configuration.GetValue("ClickHouse:TableName", "");
 
             Init();
         }
@@ -40,7 +41,7 @@ namespace OneSTools.EventLog.Exporter.Core.ClickHouse
             await CreateConnectionAsync(cancellationToken);
 
             var commandText =
-                $"SELECT TOP 1 FileName, EndPosition, LgfEndPosition, Id FROM {TableName} ORDER BY Id DESC";
+                $"SELECT TOP 1 FileName, EndPosition, LgfEndPosition, Id FROM {_tableName} ORDER BY Id DESC";
 
             await using var cmd = _connection.CreateCommand();
             cmd.CommandText = commandText;
@@ -60,7 +61,7 @@ namespace OneSTools.EventLog.Exporter.Core.ClickHouse
 
             using var copy = new ClickHouseBulkCopy(_connection)
             {
-                DestinationTableName = TableName,
+                DestinationTableName = _tableName,
                 BatchSize = entities.Count
             };
 
@@ -120,6 +121,9 @@ namespace OneSTools.EventLog.Exporter.Core.ClickHouse
 
             if (string.IsNullOrWhiteSpace(_databaseName))
                 throw new Exception("Database name is not specified");
+
+            if (_tableName == string.Empty)
+                _tableName = "EventLogItems";
         }
 
         private async Task CreateConnectionAsync(CancellationToken cancellationToken = default)
@@ -144,7 +148,7 @@ namespace OneSTools.EventLog.Exporter.Core.ClickHouse
             await _connection.ChangeDatabaseAsync(_databaseName, cancellationToken);
 
             var commandText =
-                $@"CREATE TABLE IF NOT EXISTS {TableName}
+                $@"CREATE TABLE IF NOT EXISTS {_tableName}
                 (
                     FileName LowCardinality(String),
                     EndPosition Int64 Codec(DoubleDelta, LZ4),
