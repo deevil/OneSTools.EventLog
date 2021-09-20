@@ -20,6 +20,7 @@ namespace OneSTools.EventLog
         string Metadata { get; set; }
         string MetadataUuid { get; set; }
         string Server { get; set; }
+        string InfobaseName { get; set; }
         long Session { get; set; }
         string Severity { get; set; }
         DateTime TransactionDateTime { get; set; }

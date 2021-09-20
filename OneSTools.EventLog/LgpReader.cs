@@ -33,14 +33,14 @@ namespace OneSTools.EventLog
             GC.SuppressFinalize(this);
         }
 
-        public EventLogItem ReadNextEventLogItem(CancellationToken cancellationToken = default)
+        public EventLogItem ReadNextEventLogItem(CancellationToken cancellationToken = default, string _infobaseName = null)
         {
             if (_disposedValue)
                 throw new ObjectDisposedException(nameof(LgpReader));
 
             InitializeStreams();
 
-            return ReadEventLogItemData(cancellationToken);
+            return ReadEventLogItemData(cancellationToken, _infobaseName);
         }
 
         public void SetPosition(long position)
@@ -83,14 +83,14 @@ namespace OneSTools.EventLog
             return (data, _bracketsReader.Position);
         }
 
-        private EventLogItem ReadEventLogItemData(CancellationToken cancellationToken = default)
+        private EventLogItem ReadEventLogItemData(CancellationToken cancellationToken = default, string _infobaseName = null)
         {
             var (data, endPosition) = ReadNextEventLogItemData();
 
-            return data.Length == 0 ? null : ParseEventLogItemData(data, endPosition, cancellationToken);
+            return data.Length == 0 ? null : ParseEventLogItemData(_infobaseName, data, endPosition, cancellationToken);
         }
 
-        private EventLogItem ParseEventLogItemData(StringBuilder eventLogItemData, long endPosition,
+        private EventLogItem ParseEventLogItemData(string _infobaseName, StringBuilder eventLogItemData, long endPosition,
             CancellationToken cancellationToken = default)
         {
             var parsedData = BracketsParser.ParseBlock(eventLogItemData);
@@ -98,6 +98,7 @@ namespace OneSTools.EventLog
             var eventLogItem = new EventLogItem
             {
                 TransactionStatus = GetTransactionPresentation(parsedData[1]),
+                InfobaseName = _infobaseName,
                 FileName = LgpFileName,
                 EndPosition = endPosition,
                 LgfEndPosition = _lgfReader.GetPosition()

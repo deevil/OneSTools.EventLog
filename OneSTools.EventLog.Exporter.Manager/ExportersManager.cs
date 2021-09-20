@@ -164,6 +164,7 @@ namespace OneSTools.EventLog.Exporter.Manager
 
                         var settings = new EventLogExporterSettings
                         {
+                            InfobaseName = name,
                             LogFolder = logFolder,
                             CollectedFactor = _collectedFactor,
                             LoadArchive = _loadArchive,

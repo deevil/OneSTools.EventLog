@@ -4,6 +4,7 @@ namespace OneSTools.EventLog.Exporter.Core
 {
     public class EventLogExporterSettings
     {
+        public string InfobaseName { get; set; } = "";
         public string LogFolder { get; set; } = "";
         public int Portion { get; set; } = 10000;
         public DateTimeZone TimeZone { get; set; } = DateTimeZoneProviders.Tzdb.GetSystemDefault();

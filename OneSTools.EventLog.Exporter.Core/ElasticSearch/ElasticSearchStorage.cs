@@ -52,7 +52,7 @@ namespace OneSTools.EventLog.Exporter.Core.ElasticSearch
             CheckSettings();
         }
 
-        public async Task<EventLogPosition> ReadEventLogPositionAsync(CancellationToken cancellationToken = default)
+        public async Task<EventLogPosition> ReadEventLogPositionAsync(CancellationToken cancellationToken = default, string _infobaseName = null)
         {
             if (_client is null)
                 await ConnectAsync(cancellationToken);
@@ -61,6 +61,9 @@ namespace OneSTools.EventLog.Exporter.Core.ElasticSearch
             {
                 var response = await _client.SearchAsync<EventLogItem>(sd => sd
                         .Index($"{_eventLogItemsIndex}-*")
+                        .Query(q => q
+                            .Term(p => p.InfobaseName, _infobaseName)
+                            )
                         .Sort(ss =>
                             ss.Descending(c => c.Id))
                         .Size(1)
@@ -72,7 +75,7 @@ namespace OneSTools.EventLog.Exporter.Core.ElasticSearch
 
                     if (item is null)
                         return null;
-                    return new EventLogPosition(item.FileName, item.EndPosition, item.LgfEndPosition, item.Id);
+                    return new EventLogPosition(item.InfobaseName, item.FileName, item.EndPosition, item.LgfEndPosition, item.Id);
                 }
 
                 if (response.OriginalException is TaskCanceledException)

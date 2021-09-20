@@ -16,6 +16,7 @@ namespace OneSTools.EventLog.Exporter.Core
         private readonly bool _loadArchive;
 
         // Exporter settings
+        private readonly string _infobaseName;
         private readonly string _logFolder;
         private readonly ILogger<EventLogExporter> _logger;
         private readonly int _portion;
@@ -39,6 +40,7 @@ namespace OneSTools.EventLog.Exporter.Core
             _logger = logger;
             _storage = storage;
 
+            _infobaseName = settings.InfobaseName;
             _logFolder = settings.LogFolder;
             _portion = settings.Portion;
             _writingMaxDop = settings.WritingMaxDop;
@@ -56,6 +58,7 @@ namespace OneSTools.EventLog.Exporter.Core
             _logger = logger;
             _storage = storage;
 
+            _infobaseName = configuration.GetValue("Exporter:InfobaseName", "");
             _logFolder = configuration.GetValue("Exporter:LogFolder", "");
             _portion = configuration.GetValue("Exporter:Portion", 10000);
             _writingMaxDop = configuration.GetValue("Exporter:WritingMaxDegreeOfParallelism", 1);
@@ -114,7 +117,7 @@ namespace OneSTools.EventLog.Exporter.Core
 
                     try
                     {
-                        item = _eventLogReader.ReadNextEventLogItem(cancellationToken);
+                        item = _eventLogReader.ReadNextEventLogItem(cancellationToken, _infobaseName);
                     }
                     catch (EventLogReaderTimeoutException)
                     {
@@ -179,6 +182,7 @@ namespace OneSTools.EventLog.Exporter.Core
         {
             var eventLogReaderSettings = new EventLogReaderSettings
             {
+                InfobaseName = _infobaseName,
                 LogFolder = _logFolder,
                 LiveMode = true,
                 ReadingTimeout = _readingTimeout * 1000,
@@ -187,7 +191,7 @@ namespace OneSTools.EventLog.Exporter.Core
 
             if (!_loadArchive)
             {
-                var position = await _storage.ReadEventLogPositionAsync(cancellationToken);
+                var position = await _storage.ReadEventLogPositionAsync(cancellationToken, _infobaseName);
 
                 if (position != null)
                 {
@@ -200,6 +204,7 @@ namespace OneSTools.EventLog.Exporter.Core
                     }
                     else
                     {
+                        eventLogReaderSettings.InfobaseName = position.InfobaseName;
                         eventLogReaderSettings.LgpFileName = position.FileName;
                         eventLogReaderSettings.LgpStartPosition = position.EndPosition;
                         eventLogReaderSettings.LgfStartPosition = position.LgfEndPosition;

@@ -36,12 +36,12 @@ namespace OneSTools.EventLog.Exporter.Core.ClickHouse
             Init();
         }
 
-        public async Task<EventLogPosition> ReadEventLogPositionAsync(CancellationToken cancellationToken = default)
+        public async Task<EventLogPosition> ReadEventLogPositionAsync(CancellationToken cancellationToken = default, string _infobaseName = null)
         {
             await CreateConnectionAsync(cancellationToken);
 
             var commandText =
-                $"SELECT TOP 1 FileName, EndPosition, LgfEndPosition, Id FROM {_tableName} ORDER BY Id DESC";
+                $"SELECT TOP 1 InfobaseName, FileName, EndPosition, LgfEndPosition, Id FROM {_tableName} WHERE InfobaseName = '{_infobaseName}' ORDER BY Id DESC";
 
             await using var cmd = _connection.CreateCommand();
             cmd.CommandText = commandText;
@@ -49,8 +49,8 @@ namespace OneSTools.EventLog.Exporter.Core.ClickHouse
             await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
 
             if (await reader.ReadAsync(cancellationToken))
-                return new EventLogPosition(reader.GetString(0), reader.GetInt64(1), reader.GetInt64(2),
-                    reader.GetInt64(3));
+                return new EventLogPosition(reader.GetString(0), reader.GetString(1), reader.GetInt64(2), reader.GetInt64(3),
+                    reader.GetInt64(4));
             return null;
         }
 
@@ -67,6 +67,7 @@ namespace OneSTools.EventLog.Exporter.Core.ClickHouse
 
             var data = entities.Select(item => new object[]
             {
+                item.InfobaseName ?? "",
                 item.FileName ?? "",
                 item.EndPosition,
                 item.LgfEndPosition,
@@ -150,6 +151,7 @@ namespace OneSTools.EventLog.Exporter.Core.ClickHouse
             var commandText =
                 $@"CREATE TABLE IF NOT EXISTS {_tableName}
                 (
+                    InfobaseName LowCardinality(String),
                     FileName LowCardinality(String),
                     EndPosition Int64 Codec(DoubleDelta, LZ4),
                     LgfEndPosition Int64 Codec(DoubleDelta, LZ4),

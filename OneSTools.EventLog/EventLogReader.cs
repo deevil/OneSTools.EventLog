@@ -52,7 +52,7 @@ namespace OneSTools.EventLog
         /// </summary>
         /// <param name="cancellationToken">Token for interrupting of the reader</param>
         /// <returns></returns>
-        public EventLogItem ReadNextEventLogItem(CancellationToken cancellationToken = default)
+        public EventLogItem ReadNextEventLogItem(CancellationToken cancellationToken = default, string _infobaseName = null)
         {
             if (_lgpReader == null)
                 SetNextLgpReader();
@@ -66,7 +66,7 @@ namespace OneSTools.EventLog
             {
                 try
                 {
-                    item = _lgpReader.ReadNextEventLogItem(cancellationToken);
+                    item = _lgpReader.ReadNextEventLogItem(cancellationToken, _infobaseName);
                 }
                 catch (ObjectDisposedException)
                 {
