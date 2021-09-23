@@ -162,48 +162,97 @@ namespace OneSTools.EventLog
             return eventLogItem;
         }
 
+        private static string GetPatternNodeValue(BracketsNode node)
+        {
+            return node[0];
+        }
+        private static string GetComplexZData(BracketsNode node)
+        {
+            var str = new StringBuilder();
+            var pattCount = node[0];
+            var valueCount = node[1];
+            var subDataCount = node.Count - 1;
+
+            if ((pattCount == 1) && (valueCount >= 1))
+            {
+                //One pattern
+                str.AppendLine($"{GetPatternNodeValue(node[2])} :");
+                for (var i = 2 + pattCount; i <= subDataCount; i++)
+                {
+                    var valueNode = node[i];
+                    var value = GetData(valueNode[0]);
+
+                    if (value != string.Empty)
+                        str.AppendLine(value);
+                }
+            }
+
+            if ((pattCount > 1) && (valueCount >= 1))
+            {
+                //Many patterns
+                for (var k = pattCount + 2; k <= subDataCount; k++)
+                {
+                    for (var i = 0; i <= pattCount - 1; i++)
+                    {
+                        var valueNode = node[k];
+                        var value = GetData(valueNode[i]);
+
+                        if (value != string.Empty)
+                            str.AppendLine($"{GetPatternNodeValue(node[2 + i])} : {value}");
+                    }
+                }
+
+            }
+
+            return str.ToString();
+        }
+
+        private static string GetComplexData(BracketsNode node)
+        {
+            var str = new StringBuilder();
+            var subDataNode = node[1];
+            var subDataCount = subDataNode.Count - 1;
+
+            if (subDataCount > 1)
+                for (var i = 1; i <= subDataCount; i++)
+                {
+                    var value = GetData(subDataNode[i]);
+
+                    if (value != string.Empty)
+                        str.AppendLine($"{value}");
+                }
+            else
+            {
+                var value = GetData(subDataNode);
+                if (value != string.Empty)
+                    str.AppendLine($"{value}");
+            }
+
+            return str.ToString();
+        }
+
         private static string GetData(BracketsNode node)
         {
             var dataType = (string) node[0];
 
-            switch (dataType)
+            return dataType switch
             {
-                case "R": // Reference
-                    return node[1];
-                case "U": // Undefined
-                    return "";
-                case "S": // String
-                    return node[1];
-                case "B": // Boolean
-                    return (string) node[1] == "0" ? "false" : "true";
-                case "P": // Complex data
-                    var str = new StringBuilder();
-
-                    var subDataNode = node[1];
-
-                    //var subDataType = (int)subDataNode[0];
-                    // What's known (subDataNode):
-                    // 1 - additional data of "Authentication (Windows auth) in thin or thick client"
-                    // 2 - additional data of "Authentication in COM connection" event
-                    // 6 - additional data of "Authentication in thin or thick client" event
-                    // 11 - additional data of "Access denied" event
-
-                    // I hope this is temporarily method
-                    var subDataCount = subDataNode.Count - 1;
-
-                    if (subDataCount > 0)
-                        for (var i = 1; i <= subDataCount; i++)
-                        {
-                            var value = GetData(subDataNode[i]);
-
-                            if (value != string.Empty)
-                                str.AppendLine($"Item {i}: {value}");
-                        }
-
-                    return str.ToString();
-                default:
-                    return "";
-            }
+                // Reference
+                "R" => node[1],
+                // Undefined
+                "U" => "",
+                // String
+                "S" => node[1],
+                // Boolean
+                "B" => (string)node[1] == "0" ? "false" : "true",
+                // Complex data
+                "P" => GetComplexData(node[1]),
+                // Patterned data for _$Access$_ events
+                "Z" => GetComplexZData(node[1]),
+                // SDBL UID
+                "@" => node[1],
+                _ => "",
+            };
         }
 
         private static string GetTransactionPresentation(string str)
@@ -326,7 +375,9 @@ namespace OneSTools.EventLog
                 "_$InfoBase$_.TARMess" => "Тестирование и исправление.Предупреждение",
                 "_$Job$_.Cancel" => "Фоновое задание.Отмена",
                 "_$Job$_.Fail" => "Фоновое задание.Ошибка выполнения",
+                "_$Job$_.Error" => "Фоновое задание.Ошибка",
                 "_$Job$_.Start" => "Фоновое задание.Запуск",
+                "_$Job$_.Finish" => "Фоновое задание.Завершение",
                 "_$Job$_.Succeed" => "Фоновое задание.Успешное завершение",
                 "_$Job$_.Terminate" => "Фоновое задание.Принудительное завершение",
                 "_$OpenIDProvider$_.NegativeAssertion" => "Провайдер OpenID.Отклонено",
