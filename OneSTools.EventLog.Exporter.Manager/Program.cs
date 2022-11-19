@@ -1,8 +1,7 @@
 using System.IO;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
-using OneSTools.EventLog.Exporter.Core;
+using Serilog;
 
 namespace OneSTools.EventLog.Exporter.Manager
 {
@@ -18,11 +17,13 @@ namespace OneSTools.EventLog.Exporter.Manager
             return Host.CreateDefaultBuilder(args)
                 .UseWindowsService()
                 .UseSystemd()
-                .ConfigureLogging((hostingContext, logging) =>
+                .UseSerilog((context, configuration) =>
                 {
-                    var logPath = Path.Combine(hostingContext.HostingEnvironment.ContentRootPath, "log.txt");
-                    logging.AddFile(logPath);
-                    logging.AddConfiguration(hostingContext.Configuration.GetSection("Logging"));
+                    var logPath = Path.Combine(context.HostingEnvironment.ContentRootPath, "log.txt");
+                    configuration
+                        .Enrich.FromLogContext()
+                        .WriteTo.Console()
+                        .WriteTo.File(logPath);
                 })
                 .ConfigureServices((_, services) => { services.AddHostedService<ExportersManager>(); });
         }
