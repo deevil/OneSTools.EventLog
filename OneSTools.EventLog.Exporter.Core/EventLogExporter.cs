@@ -10,7 +10,7 @@ using NodaTime;
 
 namespace OneSTools.EventLog.Exporter.Core
 {
-    public class EventLogExporter
+    public class EventLogExporter:IDisposable
     {
         private readonly int _collectedFactor;
         private readonly bool _loadArchive;
@@ -24,6 +24,7 @@ namespace OneSTools.EventLog.Exporter.Core
         private readonly DateTimeZone _timeZone = DateTimeZoneProviders.Tzdb.GetSystemDefault();
         private readonly int _writingMaxDop;
         private BatchBlock<EventLogItem> _batchBlock;
+        private string _infobaseName;
 
         private string _currentLgpFile;
 
@@ -46,6 +47,7 @@ namespace OneSTools.EventLog.Exporter.Core
             _loadArchive = settings.LoadArchive;
             _timeZone = settings.TimeZone;
             _readingTimeout = settings.ReadingTimeout;
+            _infobaseName = settings.InfobaseName;
 
             CheckSettings();
         }
@@ -62,6 +64,7 @@ namespace OneSTools.EventLog.Exporter.Core
             _collectedFactor = configuration.GetValue("Exporter:CollectedFactor", 2);
             _loadArchive = configuration.GetValue("Exporter:LoadArchive", false);
             _readingTimeout = configuration.GetValue("Exporter:ReadingTimeout", 1);
+            _infobaseName = configuration.GetValue("Exporter:InfobaseName", string.Empty);
 
             var timeZone = configuration.GetValue("Exporter:TimeZone", "");
 
@@ -106,7 +109,7 @@ namespace OneSTools.EventLog.Exporter.Core
                 var settings = await GetReaderSettingsAsync(cancellationToken);
                 _eventLogReader = new EventLogReader(settings);
 
-                while (!cancellationToken.IsCancellationRequested)
+                while (!cancellationToken.IsCancellationRequested && !_writeBlock.Completion.IsCompleted)
                 {
                     var forceSending = false;
 
@@ -167,11 +170,22 @@ namespace OneSTools.EventLog.Exporter.Core
                 BoundedCapacity = _portion * _collectedFactor
             };
 
-            _writeBlock =
-                new ActionBlock<EventLogItem[]>(c => _storage.WriteEventLogDataAsync(c.ToList(), cancellationToken),
-                    writeBlockSettings);
-            _batchBlock = new BatchBlock<EventLogItem>(_portion, batchBlockSettings);
+            _writeBlock = new ActionBlock<EventLogItem[]>(async c =>
+                {
+                    try
+                    {
+                        await _storage.WriteEventLogDataAsync(c.ToList(), cancellationToken);
+                    }
+                    catch (Exception)
+                    {
+                        _batchBlock.Complete();
+                        _writeBlock.Complete();
+                        throw;
+                    }
+                },
+                writeBlockSettings);
 
+            _batchBlock = new BatchBlock<EventLogItem>(_portion, batchBlockSettings);
             _batchBlock.LinkTo(_writeBlock, new DataflowLinkOptions {PropagateCompletion = true});
         }
 
@@ -182,12 +196,13 @@ namespace OneSTools.EventLog.Exporter.Core
                 LogFolder = _logFolder,
                 LiveMode = true,
                 ReadingTimeout = _readingTimeout * 1000,
-                TimeZone = _timeZone
+                TimeZone = _timeZone,
+                InfobaseName = _infobaseName
             };
 
             if (!_loadArchive)
             {
-                var position = await _storage.ReadEventLogPositionAsync(cancellationToken);
+                var position = await _storage.ReadEventLogPositionAsync(cancellationToken,_infobaseName );
 
                 if (position != null)
                 {

@@ -4,33 +4,40 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using OneSTools.EventLog.Exporter.Core;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace OneSTools.EventLog.Exporter
 {
     public class EventLogExporterService : BackgroundService
     {
-        private readonly EventLogExporter _exporter;
+        private readonly IServiceProvider _serviceProvider;
         private readonly ILogger<EventLogExporterService> _logger;
         private bool _disposedValue;
 
-        public EventLogExporterService(ILogger<EventLogExporterService> logger, EventLogExporter exporter)
+        public EventLogExporterService(IServiceProvider serviceProvider, ILogger<EventLogExporterService> logger)
         {
+            _serviceProvider = serviceProvider;
             _logger = logger;
-            _exporter = exporter;
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            try
+            while (!stoppingToken.IsCancellationRequested)
             {
-                await _exporter.StartAsync(stoppingToken);
-            }
-            catch (TaskCanceledException)
-            {
-            }
-            catch (Exception ex)
-            {
-                _logger.LogCritical(ex, "Failed to execute EventLogExporter");
+                try
+                {
+                    using var exporter = _serviceProvider.GetService<EventLogExporter>();
+                    await exporter.StartAsync(stoppingToken);
+                }
+                catch (TaskCanceledException)
+                {
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogCritical(ex, "Failed to execute EventLogExporter");
+                }
+
+                await Task.Delay(5000, stoppingToken);
             }
         }
 
@@ -41,8 +48,6 @@ namespace OneSTools.EventLog.Exporter
                 if (disposing)
                 {
                 }
-
-                _exporter?.Dispose();
 
                 _disposedValue = true;
             }

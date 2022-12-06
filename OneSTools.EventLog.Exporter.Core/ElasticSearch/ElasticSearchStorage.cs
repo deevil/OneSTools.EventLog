@@ -53,7 +53,7 @@ namespace OneSTools.EventLog.Exporter.Core.ElasticSearch
             CheckSettings();
         }
 
-        public async Task<EventLogPosition> ReadEventLogPositionAsync(CancellationToken cancellationToken = default)
+        public async Task<EventLogPosition> ReadEventLogPositionAsync(CancellationToken cancellationToken = default, string infobaseName = "")
         {
             if (_client is null)
                 await ConnectAsync(cancellationToken);
@@ -229,7 +229,8 @@ namespace OneSTools.EventLog.Exporter.Core.ElasticSearch
                                 ""event"": { ""type"": ""keyword"" },
                                 ""metadataUuid"": { ""type"": ""keyword"" },
                                 ""dataPresentation"": { ""type"": ""text"" },
-                                ""user"": { ""type"": ""keyword"" }
+                                ""user"": { ""type"": ""keyword"" },
+                                ""infobaseName"": { ""type"": ""keyword"" }
                             }
                         }
                     }

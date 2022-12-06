@@ -104,6 +104,7 @@ namespace OneSTools.EventLog
                 {
                     _settings.ItemId++;
                     item.Id = _settings.ItemId;
+                    item.InfobaseName = _settings.InfobaseName;
 
                     break;
                 }

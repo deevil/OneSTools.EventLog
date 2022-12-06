@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
@@ -134,12 +135,12 @@ namespace OneSTools.EventLog.Exporter.Manager
 
         private void ClstWatcher_InfoBasesDeleted(object sender, ClstEventArgs args)
         {
-            StartExporter(args.Path, args.Name, args.DataBaseName);
+            StopExporter(args.Path, args.Name);
         }
 
         private void ClstWatcher_InfoBasesAdded(object sender, ClstEventArgs args)
         {
-            StopExporter(args.Path, args.Name);
+            StartExporter(args.Path, args.Name, args.DataBaseName);
         }
 
         private void StartExporter(string path, string name, string dataBaseName)
@@ -170,23 +171,29 @@ namespace OneSTools.EventLog.Exporter.Manager
                             Portion = _portion,
                             ReadingTimeout = _readingTimeout,
                             TimeZone = _timeZone,
-                            WritingMaxDop = _writingMaxDop
+                            WritingMaxDop = _writingMaxDop,
+                            InfobaseName = dataBaseName
                         };
 
-                        var exporter = new EventLogExporter(settings, storage, logger);
 
                         Task.Factory.StartNew(async () =>
                         {
-                            try
+                            while (!cts.Token.IsCancellationRequested)
                             {
-                                await exporter.StartAsync(cts.Token);
-                            }
-                            catch (TaskCanceledException)
-                            {
-                            }
-                            catch (Exception ex)
-                            {
-                                _logger?.LogCritical(ex, "Failed to execute EventLogExporter");
+                                try
+                                {
+                                    var exporter = new EventLogExporter(settings, storage, logger);
+                                    await exporter.StartAsync(cts.Token);
+                                }
+                                catch (TaskCanceledException)
+                                {
+                                }
+                                catch (Exception ex)
+                                {
+                                    _logger?.LogCritical(ex, "Failed to execute EventLogExporter");
+                                }
+
+                                await Task.Delay(5000, cts.Token);
                             }
                         }, cts.Token);
 
@@ -224,7 +231,10 @@ namespace OneSTools.EventLog.Exporter.Manager
                 {
                     var logger =
                         (ILogger<ClickHouseStorage>) _serviceProvider.GetService(typeof(ILogger<ClickHouseStorage>));
-                    var connectionString = $"{_connectionString}Database={dataBaseName};";
+
+                    var connectionString = _connectionString.Contains("Database=")
+                        ? _connectionString
+                        : $"{_connectionString}Database={dataBaseName};";
 
                     return new ClickHouseStorage(connectionString, logger);
                 }
