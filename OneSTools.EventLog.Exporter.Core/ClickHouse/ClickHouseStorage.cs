@@ -97,14 +97,17 @@ namespace OneSTools.EventLog.Exporter.Core.ClickHouse
                 item.Session
             }).AsEnumerable();
 
-            try
-            {
-                await copy.WriteToServerAsync(data, cancellationToken);
-            }
-            catch (Exception ex)
-            {
-                _logger?.LogError(ex, $"Failed to write data to {_databaseName}.{_tableName}");
-                throw;
+            while(true){
+                try
+                {
+                    await copy.WriteToServerAsync(data, cancellationToken);
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogWarning(ex, $"Failed to write data to {_databaseName}." + System.Environment.NewLine + ex.Message);
+                    await Task.Delay(1000);
+                }
             }
 
             _logger?.LogDebug($"{entities.Count} items were being written to {_databaseName}.{_tableName}");
