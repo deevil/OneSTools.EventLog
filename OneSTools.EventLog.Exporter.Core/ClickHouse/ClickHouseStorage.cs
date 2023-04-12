@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
@@ -13,7 +13,7 @@ namespace OneSTools.EventLog.Exporter.Core.ClickHouse
 {
     public class ClickHouseStorage : IEventLogStorage
     {
-        private string _tableName;
+        private string TableName = "EventLogItems";
         private readonly ILogger<ClickHouseStorage> _logger;
         private ClickHouseConnection _connection;
         private string _connectionString;
@@ -31,7 +31,7 @@ namespace OneSTools.EventLog.Exporter.Core.ClickHouse
         {
             _logger = logger;
             _connectionString = configuration.GetValue("ClickHouse:ConnectionString", "");
-            _tableName = configuration.GetValue("ClickHouse:TableName", "");
+            TableName = configuration.GetValue("ClickHouse:TableName", "");
 
             Init();
         }
@@ -41,7 +41,7 @@ namespace OneSTools.EventLog.Exporter.Core.ClickHouse
             await CreateConnectionAsync(cancellationToken);
 
             var commandText =
-                $"SELECT TOP 1 InfobaseName, FileName, EndPosition, LgfEndPosition, Id FROM {_tableName} WHERE InfobaseName = '{_infobaseName}' ORDER BY Id DESC";
+                $"SELECT TOP 1 InfobaseName, FileName, EndPosition, LgfEndPosition, Id FROM {TableName} WHERE InfobaseName = '{_infobaseName}' ORDER BY DateTime DESC, EndPosition DESC";
 
             await using var cmd = _connection.CreateCommand();
             cmd.CommandText = commandText;
@@ -61,7 +61,7 @@ namespace OneSTools.EventLog.Exporter.Core.ClickHouse
 
             using var copy = new ClickHouseBulkCopy(_connection)
             {
-                DestinationTableName = _tableName,
+                DestinationTableName = TableName,
                 BatchSize = entities.Count
             };
 
@@ -122,10 +122,12 @@ namespace OneSTools.EventLog.Exporter.Core.ClickHouse
 
             if (string.IsNullOrWhiteSpace(_databaseName))
                 throw new Exception("Database name is not specified");
-
-            if (_tableName == string.Empty)
-                _tableName = "EventLogItems";
+            else
+                _databaseName = FixDatabaseName(_databaseName);
         }
+
+        private static string FixDatabaseName(string name)
+            => Regex.Replace(name, @"(?:\W|-)", "_", RegexOptions.Compiled);
 
         private async Task CreateConnectionAsync(CancellationToken cancellationToken = default)
         {
@@ -149,7 +151,7 @@ namespace OneSTools.EventLog.Exporter.Core.ClickHouse
             await _connection.ChangeDatabaseAsync(_databaseName, cancellationToken);
 
             var commandText =
-                $@"CREATE TABLE IF NOT EXISTS {_tableName}
+                $@"CREATE TABLE IF NOT EXISTS {TableName}
                 (
                     InfobaseName LowCardinality(String),
                     FileName LowCardinality(String),

@@ -1,4 +1,5 @@
-﻿using System.Threading;
+﻿using System;
+using System.Threading;
 using NodaTime;
 
 namespace OneSTools.EventLog
@@ -14,5 +15,6 @@ namespace OneSTools.EventLog
         public long ItemId { get; set; } = 0;
         public int ReadingTimeout { get; set; } = Timeout.Infinite;
         public DateTimeZone TimeZone { get; set; } = DateTimeZoneProviders.Tzdb.GetSystemDefault();
+        public DateTime SkipEventsBeforeDate { get; set; }
     }
 }

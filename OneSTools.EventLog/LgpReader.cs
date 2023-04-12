@@ -16,12 +16,14 @@ namespace OneSTools.EventLog
         private FileStream _fileStream;
         private LgfReader _lgfReader;
         private FileSystemWatcher _lgpFileWatcher;
+        private DateTime _skipEventsBeforeDate;
 
-        public LgpReader(string lgpPath, DateTimeZone timeZone, LgfReader lgfReader)
+        public LgpReader(string lgpPath, DateTimeZone timeZone, LgfReader lgfReader, DateTime skipEventsBeforeDate)
         {
             LgpPath = lgpPath;
             _timeZone = timeZone;
             _lgfReader = lgfReader;
+            _skipEventsBeforeDate = skipEventsBeforeDate;
         }
 
         public string LgpPath { get; }
@@ -85,9 +87,16 @@ namespace OneSTools.EventLog
 
         private EventLogItem ReadEventLogItemData(CancellationToken cancellationToken = default, string _infobaseName = null)
         {
-            var (data, endPosition) = ReadNextEventLogItemData();
+            while (true)
+            {
+                var (data, endPosition) = ReadNextEventLogItemData();
+                if (data.Length == 0)
+                    return null;
 
-            return data.Length == 0 ? null : ParseEventLogItemData(_infobaseName, data, endPosition, cancellationToken);
+                var eventLogItem = ParseEventLogItemData(_infobaseName, data, endPosition, cancellationToken);
+                if (eventLogItem != null)
+                    return eventLogItem;
+            }
         }
 
         private EventLogItem ParseEventLogItemData(string _infobaseName, StringBuilder eventLogItemData, long endPosition,
@@ -95,24 +104,29 @@ namespace OneSTools.EventLog
         {
             var parsedData = BracketsParser.ParseBlock(eventLogItemData);
 
+            DateTime dateTime = default;
+            try
+            {
+                dateTime = _timeZone.ToUtc(DateTime.ParseExact(parsedData[0], "yyyyMMddHHmmss",
+                    CultureInfo.InvariantCulture));
+            }
+            catch
+            {
+                dateTime = DateTime.MinValue;
+            }
+
+            if (dateTime < _skipEventsBeforeDate)
+                return null;
+
             var eventLogItem = new EventLogItem
             {
+                DateTime = dateTime,
                 TransactionStatus = GetTransactionPresentation(parsedData[1]),
                 InfobaseName = _infobaseName,
                 FileName = LgpFileName,
                 EndPosition = endPosition,
                 LgfEndPosition = _lgfReader.GetPosition()
             };
-
-            try
-            {
-                eventLogItem.DateTime = _timeZone.ToUtc(DateTime.ParseExact(parsedData[0], "yyyyMMddHHmmss",
-                    CultureInfo.InvariantCulture));
-            }
-            catch
-            {
-                eventLogItem.DateTime = DateTime.MinValue;
-            }
 
             var transactionData = parsedData[2];
             eventLogItem.TransactionNumber = Convert.ToInt64(transactionData[1], 16);
@@ -136,7 +150,7 @@ namespace OneSTools.EventLog
             var ev = _lgfReader.GetObjectValue(ObjectType.Events, parsedData[7], cancellationToken);
             eventLogItem.Event = GetEventPresentation(ev);
 
-            var severity = (string) parsedData[8];
+            var severity = (string)parsedData[8];
             eventLogItem.Severity = GetSeverityPresentation(severity);
 
             eventLogItem.Comment = parsedData[9];
@@ -160,51 +174,6 @@ namespace OneSTools.EventLog
             eventLogItem.Session = parsedData[16];
 
             return eventLogItem;
-        }
-
-        private static string GetPatternNodeValue(BracketsNode node)
-        {
-            return node[0];
-        }
-        private static string GetComplexZData(BracketsNode node)
-        {
-            var str = new StringBuilder();
-            var pattCount = node[0];
-            var valueCount = node[1];
-            var subDataCount = node.Count - 1;
-
-            if ((pattCount == 1) && (valueCount >= 1))
-            {
-                //One pattern
-                str.AppendLine($"{GetPatternNodeValue(node[2])} :");
-                for (var i = 2 + pattCount; i <= subDataCount; i++)
-                {
-                    var valueNode = node[i];
-                    var value = GetData(valueNode[0]);
-
-                    if (value != string.Empty)
-                        str.AppendLine(value);
-                }
-            }
-
-            if ((pattCount > 1) && (valueCount >= 1))
-            {
-                //Many patterns
-                for (var k = pattCount + 2; k <= subDataCount; k++)
-                {
-                    for (var i = 0; i <= pattCount - 1; i++)
-                    {
-                        var valueNode = node[k];
-                        var value = GetData(valueNode[i]);
-
-                        if (value != string.Empty)
-                            str.AppendLine($"{GetPatternNodeValue(node[2 + i])} : {value}");
-                    }
-                }
-
-            }
-
-            return str.ToString();
         }
 
         private static string GetComplexData(BracketsNode node)
@@ -233,7 +202,7 @@ namespace OneSTools.EventLog
 
         private static string GetData(BracketsNode node)
         {
-            var dataType = (string) node[0];
+            var dataType = (string)node[0];
 
             return dataType switch
             {
@@ -248,7 +217,7 @@ namespace OneSTools.EventLog
                 // Complex data
                 "P" => GetComplexData(node[1]),
                 // Patterned data for _$Access$_ events
-                "Z" => GetComplexZData(node[1]),
+                "Z" => GetComplexData(node[1]),
                 // SDBL UID
                 "@" => node[1],
                 _ => "",
