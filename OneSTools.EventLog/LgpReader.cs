@@ -199,6 +199,52 @@ namespace OneSTools.EventLog
 
             return str.ToString();
         }
+        
+        private static string GetPatternNodeValue(BracketsNode node)
+        {
+            return node[0];
+        }
+        
+        private static string GetComplexZData(BracketsNode node)
+        {
+            var str = new StringBuilder();
+            var pattCount = node[0];
+            var valueCount = node[1];
+            var subDataCount = node.Count - 1;
+
+            if ((pattCount == 1) && (valueCount >= 1))
+            {
+                //One pattern
+                str.AppendLine($"{GetPatternNodeValue(node[2])} :");
+                for (var i = 2 + pattCount; i <= subDataCount; i++)
+                {
+                    var valueNode = node[i];
+                    var value = GetData(valueNode[0]);
+
+                    if (value != string.Empty)
+                        str.AppendLine(value);
+                }
+            }
+
+            if ((pattCount > 1) && (valueCount >= 1))
+            {
+                //Many patterns
+                for (var k = pattCount + 2; k <= subDataCount; k++)
+                {
+                    for (var i = 0; i <= pattCount - 1; i++)
+                    {
+                        var valueNode = node[k];
+                        var value = GetData(valueNode[i]);
+
+                        if (value != string.Empty)
+                            str.AppendLine($"{GetPatternNodeValue(node[2 + i])} : {value}");
+                    }
+                }
+
+            }
+
+            return str.ToString();
+        }
 
         private static string GetData(BracketsNode node)
         {
@@ -217,7 +263,7 @@ namespace OneSTools.EventLog
                 // Complex data
                 "P" => GetComplexData(node[1]),
                 // Patterned data for _$Access$_ events
-                "Z" => GetComplexData(node[1]),
+                "Z" => GetComplexZData(node[1]),
                 // SDBL UID
                 "@" => node[1],
                 _ => "",

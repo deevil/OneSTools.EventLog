@@ -25,6 +25,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <_WebToolingArtifacts Remove="Properties\PublishProfiles\Linux-x64.pubxml" />
+    <_WebToolingArtifacts Remove="Properties\PublishProfiles\Windows-x64.pubxml" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="5.0.0" />
     <PackageReference Include="Microsoft.Extensions.Hosting.Systemd" Version="5.0.1" />
     <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="5.0.1" />
