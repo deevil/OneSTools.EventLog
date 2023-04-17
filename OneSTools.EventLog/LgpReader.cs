@@ -179,7 +179,7 @@ namespace OneSTools.EventLog
         private static string GetComplexData(BracketsNode node)
         {
             var str = new StringBuilder();
-            var subDataNode = node[1];
+            var subDataNode = node.Count == 1 ? node[0] : node[1];
             var subDataCount = subDataNode.Count - 1;
 
             if (subDataCount > 1)
