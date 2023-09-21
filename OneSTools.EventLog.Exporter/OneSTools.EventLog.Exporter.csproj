@@ -1,42 +1,37 @@
 <Project Sdk="Microsoft.NET.Sdk.Worker">
-
   <PropertyGroup>
-    <TargetFramework>net5.0</TargetFramework>
+    <TargetFramework>net6.0</TargetFramework>
     <UserSecretsId>dotnet-EventLogExporterElasticSearch-E480DCDC-5542-443A-A879-763D915661EB</UserSecretsId>
     <Authors>Akpaev Evgeny</Authors>
     <Copyright>Akpaev Evgeny</Copyright>
-    <PackageProjectUrl></PackageProjectUrl>
+    <PackageProjectUrl>
+    </PackageProjectUrl>
     <Description>Служба для экспорта журнала регистрации 1С в ClickHouse и ElasticSearch</Description>
     <Version>1.0.5</Version>
     <AssemblyName>EventLogExporter</AssemblyName>
     <RootNamespace>OneSTools.EventLog.Exporter</RootNamespace>
   </PropertyGroup>
-
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
     <DebugType>none</DebugType>
     <DebugSymbols>false</DebugSymbols>
     <OutputPath>..\Build\Release</OutputPath>
   </PropertyGroup>
-
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
     <DebugType>portable</DebugType>
     <DebugSymbols>true</DebugSymbols>
     <OutputPath>..\Build\Debug</OutputPath>
   </PropertyGroup>
-
-  <ItemGroup>
-    <PackageReference Include="Microsoft.Extensions.Hosting" Version="5.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Hosting.Systemd" Version="5.0.1" />
-    <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="5.0.1" />
-  </ItemGroup>
-
   <ItemGroup>
     <ProjectReference Include="..\OneSTools.EventLog.Exporter.Core\OneSTools.EventLog.Exporter.Core.csproj" />
   </ItemGroup>
-
   <ProjectExtensions>
     <VisualStudio>
       <UserProperties appsettings_1json__JsonSchema="" />
     </VisualStudio>
   </ProjectExtensions>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="6.0.1" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Systemd" Version="6.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="6.0.2" />
+  </ItemGroup>
 </Project>

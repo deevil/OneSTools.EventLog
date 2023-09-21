@@ -66,6 +66,8 @@ namespace OneSTools.EventLog
             {
                 try
                 {
+		    if (_lgpReader == null)
+                        throw new Exception($"LPG reader is not initialized. Check for lpg files in the {_settings.LogFolder}");
                     item = _lgpReader.ReadNextEventLogItem(cancellationToken);
                 }
                 catch (ObjectDisposedException)

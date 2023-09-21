@@ -1,7 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
-
   <PropertyGroup>
-    <TargetFramework>netstandard2.1</TargetFramework>
+    <TargetFramework>net6.0</TargetFramework>
     <AssemblyName>OneSTools.EventLog.Exporter.Core</AssemblyName>
     <RootNamespace>OneSTools.EventLog.Exporter.Core</RootNamespace>
     <Authors>Akpaev Evgeny</Authors>
@@ -9,30 +8,24 @@
     <Copyright>Akpaev Evgeny</Copyright>
     <Version>1.1.1</Version>
   </PropertyGroup>
-
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
     <OutputPath>..\Build\Release</OutputPath>
   </PropertyGroup>
-
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
     <OutputPath>..\Build\Debug</OutputPath>
   </PropertyGroup>
-
   <ItemGroup>
     <None Remove="EventLogExporter.cs~RF10cbf212.TMP" />
   </ItemGroup>
-
   <ItemGroup>
     <PackageReference Include="ClickHouse.Client" Version="3.0.0.357" />
-    <PackageReference Include="Microsoft.Extensions.Hosting" Version="5.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="5.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="5.0.0" />
     <PackageReference Include="NEST" Version="7.10.1" />
-    <PackageReference Include="System.Threading.Tasks.Dataflow" Version="5.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="6.0.1" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="6.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="6.0.4" />
+    <PackageReference Include="System.Threading.Tasks.Dataflow" Version="6.0.0" />
   </ItemGroup>
-
   <ItemGroup>
     <ProjectReference Include="..\OneSTools.EventLog\OneSTools.EventLog.csproj" />
   </ItemGroup>
-
 </Project>

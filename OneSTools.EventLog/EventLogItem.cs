@@ -4,6 +4,7 @@ namespace OneSTools.EventLog
 {
     public class EventLogItem
     {
+        public virtual string DatabaseName {get; set; } = "";
         public long Id { get; set; } = 0;
         public virtual string FileName { get; set; } = "";
         public virtual long EndPosition { get; set; } = 0;

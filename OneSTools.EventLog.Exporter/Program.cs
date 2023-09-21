@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using OneSTools.EventLog.Exporter.Core;
 using OneSTools.EventLog.Exporter.Core.ClickHouse;
 using OneSTools.EventLog.Exporter.Core.ElasticSearch;
+using OneSTools.EventLog.Exporter.Core.Splunk;
 
 namespace OneSTools.EventLog.Exporter
 {
@@ -35,7 +36,6 @@ namespace OneSTools.EventLog.Exporter
                 .ConfigureServices((hostContext, services) =>
                 {
                     var storageType = hostContext.Configuration.GetValue("Exporter:StorageType", StorageType.None);
-
                     switch (storageType)
                     {
                         case StorageType.ClickHouse:
@@ -43,6 +43,9 @@ namespace OneSTools.EventLog.Exporter
                             break;
                         case StorageType.ElasticSearch:
                             services.AddTransient<IEventLogStorage, ElasticSearchStorage>();
+                            break;
+                        case StorageType.Splunk:
+                            services.AddTransient<IEventLogStorage, SplunkStorage>();
                             break;
                         case StorageType.None:
                             throw new Exception("You must set StorageType parameter before starting the exporter");

@@ -343,3 +343,7 @@ ASALocalRun/
 
 # BeatPulse healthcheck temp database
 healthchecksdb
+/OneSTools.EventLog.Exporter.Manager/appsettings.json
+/OneSTools.EventLog.Exporter.Manager/Properties/launchSettings.json
+/appsettings.json
+/OneSTools.EventLog.sln
