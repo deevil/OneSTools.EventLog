@@ -21,6 +21,9 @@ namespace OneSTools.EventLog.Exporter.Manager
 
         private readonly int _collectedFactor;
 
+        private readonly int _logReadMode;
+        private readonly int _logReadTimer;
+
         // ClickHouse
         private readonly string _connectionString;
         private readonly bool _loadArchive;
@@ -61,6 +64,9 @@ namespace OneSTools.EventLog.Exporter.Manager
             _loadArchive = configuration.GetValue("Exporter:LoadArchive", false);
             _readingTimeout = configuration.GetValue("Exporter:ReadingTimeout", 1);
             _skipEventsBeforeDate = configuration.GetValue("Exporter:SkipEventsBeforeDate", DateTime.MinValue);
+
+            _logReadMode = configuration.GetValue("Exporter:LogReadMode", 1);
+            _logReadTimer = configuration.GetValue("Exporter:LogReadTimer", 60);
 
             var timeZone = configuration.GetValue("Exporter:TimeZone", "");
 
@@ -179,7 +185,9 @@ namespace OneSTools.EventLog.Exporter.Manager
                             ReadingTimeout = _readingTimeout,
                             TimeZone = _timeZone,
                             WritingMaxDop = _writingMaxDop,
-                            SkipEventsBeforeDate = _skipEventsBeforeDate
+                            SkipEventsBeforeDate = _skipEventsBeforeDate,
+                            LogReadMode = _logReadMode,
+                            LogReadTimer = _logReadTimer
                         };
 
                         Task.Factory.StartNew(async () =>

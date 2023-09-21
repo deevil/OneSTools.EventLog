@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
+using System.Timers;
 
 namespace OneSTools.EventLog
 {
@@ -16,6 +17,7 @@ namespace OneSTools.EventLog
         private LgfReader _lgfReader;
         private ManualResetEvent _lgpChangedCreated;
         private FileSystemWatcher _lgpFilesWatcher;
+        private System.Timers.Timer _Timer;
         private LgpReader _lgpReader;
 
         public EventLogReader(EventLogReaderSettings settings)
@@ -57,8 +59,11 @@ namespace OneSTools.EventLog
             if (_lgpReader == null)
                 SetNextLgpReader();
 
-            if (_settings.LiveMode && _lgpFilesWatcher == null)
+            if (_settings.LiveMode && _settings.LogReadMode == 1 && _lgpFilesWatcher == null)
                 StartLgpFilesWatcher();
+
+            if (_settings.LiveMode && _settings.LogReadMode != 1 && _Timer == null)
+                StartLgpFilesReadTimer();
 
             EventLogItem item = null;
 
@@ -172,12 +177,34 @@ namespace OneSTools.EventLog
                 _lgpChangedCreated.Set();
         }
 
+        private void StartLgpFilesReadTimer()
+        {
+            _lgpChangedCreated = new ManualResetEvent(false);
+
+            _Timer = new System.Timers.Timer(_settings.LogReadTimer * 1000);
+            _Timer.Elapsed += StartLgpFilesReadTimedEvent;
+            _Timer.AutoReset = true;
+            _Timer.Enabled = true;
+        }
+
+        private void StartLgpFilesReadTimedEvent(Object source, ElapsedEventArgs e)
+        {
+            //Console.WriteLine("Срабатывание таймера: {0:HH:mm:ss.fff}", e.SignalTime);
+            _lgpChangedCreated.Set();
+        }
+
         protected virtual void Dispose(bool disposing)
         {
             if (!_disposedValue)
             {
-                _lgpFilesWatcher?.Dispose();
-                _lgpFilesWatcher = null;
+                if (_settings.LogReadMode == 1) {
+                    _lgpFilesWatcher?.Dispose();
+                    _lgpFilesWatcher = null;
+                } else {
+                    _Timer?.Stop();
+                    _Timer?.Dispose();
+                    _Timer = null;
+                }
                 _lgpChangedCreated?.Dispose();
                 _lgpChangedCreated = null;
                 _lgfReader?.Dispose();

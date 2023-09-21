@@ -15,6 +15,9 @@ namespace OneSTools.EventLog.Exporter.Core
         private readonly int _collectedFactor;
         private readonly bool _loadArchive;
 
+        private readonly int _logReadMode;
+        private readonly int _logReadTimer;
+
         // Exporter settings
         private readonly string _logFolder;
         private readonly ILogger<EventLogExporter> _logger;
@@ -48,6 +51,8 @@ namespace OneSTools.EventLog.Exporter.Core
             _timeZone = settings.TimeZone;
             _readingTimeout = settings.ReadingTimeout;
             _skipEventsBeforeDate = settings.SkipEventsBeforeDate;
+            _logReadMode = settings.LogReadTimer;
+            _logReadTimer = settings.LogReadTimer;
 
             CheckSettings();
         }
@@ -66,6 +71,9 @@ namespace OneSTools.EventLog.Exporter.Core
             _readingTimeout = configuration.GetValue("Exporter:ReadingTimeout", 1);
             _skipEventsBeforeDate = configuration.GetValue("Exporter:SkipEventsBeforeDate", DateTime.MinValue);
 
+            _logReadMode = configuration.GetValue("Exporter:LogReadMode", 1);
+            _logReadTimer = configuration.GetValue("Exporter:LogReadTimer", 60); 
+            
             var timeZone = configuration.GetValue("Exporter:TimeZone", "");
 
             if (!string.IsNullOrWhiteSpace(timeZone))
@@ -197,7 +205,9 @@ namespace OneSTools.EventLog.Exporter.Core
                 LiveMode = true,
                 ReadingTimeout = _readingTimeout * 1000,
                 TimeZone = _timeZone,
-                SkipEventsBeforeDate = _skipEventsBeforeDate
+                SkipEventsBeforeDate = _skipEventsBeforeDate,
+                LogReadMode = _logReadMode,
+                LogReadTimer = _logReadTimer
             };
 
             if (!_loadArchive)

@@ -15,5 +15,8 @@ namespace OneSTools.EventLog
         public int ReadingTimeout { get; set; } = Timeout.Infinite;
         public DateTimeZone TimeZone { get; set; } = DateTimeZoneProviders.Tzdb.GetSystemDefault();
         public DateTime SkipEventsBeforeDate { get; set; }
+
+        public int LogReadMode { get; set; } = 1;
+        public int LogReadTimer { get; set; } = 60;
     }
 }

@@ -71,7 +71,10 @@
     "WritingMaxDegreeOfParallelism": 8,
     "CollectedFactor": 8,
     "ReadingTimeout": 1,
-    "LoadArchive": false
+    "LoadArchive": false,
+    "SkipEventsBeforeDate": "2022-04-01T00:00:00",
+    "LogReadMode": 1,
+    "LogReadTimer":  60
   }
 ```
 где:  
@@ -85,6 +88,9 @@
 6. *CollectedFactor* - коэффициент количества элементов, которые могут быть помещены в очередь записи. Предельное количество элементов равно Portion * CollectedFactor. По умолчанию - 2  
 7. *ReadingTimeout* - таймаут сброса данных при достижении конца файла (в секундах). По умолчанию - 1 сек.  
 8. *LoadArchive* - Специальный параметр, предназначенный для первоначальной загрузки архивных данных. При установке параметра в true, отключается "live" режим и не выполняется запрос последнего обработанного файла из БД
+9. *SkipEventsBeforeDate* - Пропустить события до указанной даты.
+10. *LogReadMode* - Режим чтения логов (1 - по изменению, 2 - по таймеру). По умолчанию - 1.
+11. *LogReadTimer* - Время таймера для чтения логов по таймеру. По умолчанию - 60 сек.
 
 **ClickHouse:**
 ```json
@@ -100,6 +106,7 @@
 2. *StoreMode* - как хранить различные журналы регистраций:</br>
    *1* - Каждый журнал регистрации - отдельная **база данных**</br>
    *2* - Каждый журнал регитрации - отдельная **таблица**</br>
+   По умолчанию 1.
 3. *ConnectTryCount* - при недоступности ClickHouse сколько раз пробовать переподключиться (-1 - бесконечно)</br>
 4. *ConnectSleepTimeout* - время в милисекундах между попытками подключения к ClickHouse</br>
 
@@ -177,7 +184,10 @@
     "WritingMaxDegreeOfParallelism": 1,
     "CollectedFactor": 2,
     "ReadingTimeout": 1,
-    "LoadArchive": false
+    "LoadArchive": false,
+    "SkipEventsBeforeDate": "2022-04-01T00:00:00",
+    "LogReadMode": 1,
+    "LogReadTimer":  60
   },
   "ClickHouse": {
     "ConnectionString": "Host=192.168.0.93;Port=8123;Database=upp_main_el;Username=default;password=;",
