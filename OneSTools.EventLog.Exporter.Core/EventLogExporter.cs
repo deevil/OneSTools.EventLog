@@ -25,6 +25,8 @@ namespace OneSTools.EventLog.Exporter.Core
         private readonly int _writingMaxDop;
         private BatchBlock<EventLogItem> _batchBlock;
         private readonly DateTime _skipEventsBeforeDate;
+        private readonly string[] _skipEvents;
+        private readonly string _dataBaseName;
 
         private string _currentLgpFile;
 
@@ -48,6 +50,8 @@ namespace OneSTools.EventLog.Exporter.Core
             _timeZone = settings.TimeZone;
             _readingTimeout = settings.ReadingTimeout;
             _skipEventsBeforeDate = settings.SkipEventsBeforeDate;
+            _skipEvents = settings.SkipEvents;
+            _dataBaseName = settings.DBName;
 
             CheckSettings();
         }
@@ -65,6 +69,7 @@ namespace OneSTools.EventLog.Exporter.Core
             _loadArchive = configuration.GetValue("Exporter:LoadArchive", false);
             _readingTimeout = configuration.GetValue("Exporter:ReadingTimeout", 1);
             _skipEventsBeforeDate = configuration.GetValue("Exporter:SkipEventsBeforeDate", DateTime.MinValue);
+            _skipEvents = configuration.GetSection("Exporter:SkipEvents").Get<string[]>();
 
             var timeZone = configuration.GetValue("Exporter:TimeZone", "");
 
@@ -197,7 +202,9 @@ namespace OneSTools.EventLog.Exporter.Core
                 LiveMode = true,
                 ReadingTimeout = _readingTimeout * 1000,
                 TimeZone = _timeZone,
-                SkipEventsBeforeDate = _skipEventsBeforeDate
+                SkipEventsBeforeDate = _skipEventsBeforeDate,
+                SkipEvents = _skipEvents,
+                DBName = _dataBaseName
             };
 
             if (!_loadArchive)

@@ -43,6 +43,7 @@ namespace OneSTools.EventLog.Exporter.Manager
         private readonly DateTimeZone _timeZone = DateTimeZoneProviders.Tzdb.GetSystemDefault();
         private readonly int _writingMaxDop;
         private readonly DateTime _skipEventsBeforeDate;
+        private readonly string[] _skipEvents;
 
         public ExportersManager(ILogger<ExportersManager> logger, IServiceProvider serviceProvider,
             IConfiguration configuration)
@@ -58,6 +59,7 @@ namespace OneSTools.EventLog.Exporter.Manager
             _loadArchive = configuration.GetValue("Exporter:LoadArchive", false);
             _readingTimeout = configuration.GetValue("Exporter:ReadingTimeout", 1);
             _skipEventsBeforeDate = configuration.GetValue("Exporter:SkipEventsBeforeDate", DateTime.MinValue);
+            _skipEvents = configuration.GetSection("Exporter:SkipEvents").Get<string[]>();
 
             var timeZone = configuration.GetValue("Exporter:TimeZone", "");
 
@@ -165,6 +167,7 @@ namespace OneSTools.EventLog.Exporter.Manager
 
                         var settings = new EventLogExporterSettings
                         {
+                            DBName = name,
                             LogFolder = logFolder,
                             CollectedFactor = _collectedFactor,
                             LoadArchive = _loadArchive,
@@ -172,7 +175,8 @@ namespace OneSTools.EventLog.Exporter.Manager
                             ReadingTimeout = _readingTimeout,
                             TimeZone = _timeZone,
                             WritingMaxDop = _writingMaxDop,
-                            SkipEventsBeforeDate = _skipEventsBeforeDate
+                            SkipEventsBeforeDate = _skipEventsBeforeDate,
+                            SkipEvents = _skipEvents
                         };
 
                         Task.Factory.StartNew(async () =>
@@ -181,7 +185,7 @@ namespace OneSTools.EventLog.Exporter.Manager
                             {
                                 try
                                 {
-                                    using var storage = GetStorage(dataBaseName);
+                                    using var storage = GetStorage(dataBaseName, name);
                                     using var exporter = new EventLogExporter(settings, storage, logger);
                                     await exporter.StartAsync(cts.Token);
                                 }
@@ -221,7 +225,7 @@ namespace OneSTools.EventLog.Exporter.Manager
             }
         }
 
-        private IEventLogStorage GetStorage(string dataBaseName)
+        private IEventLogStorage GetStorage(string dataBaseName, string dbName)
         {
             switch (_storageType)
             {
@@ -231,7 +235,7 @@ namespace OneSTools.EventLog.Exporter.Manager
                             (ILogger<ClickHouseStorage>)_serviceProvider.GetService(typeof(ILogger<ClickHouseStorage>));
                         var connectionString = $"{_connectionString}Database={dataBaseName};";
 
-                        return new ClickHouseStorage(connectionString, logger);
+                        return new ClickHouseStorage(connectionString, dbName, logger);
                     }
                 case StorageType.ElasticSearch:
                     {
