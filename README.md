@@ -90,14 +90,18 @@
 ```json
 "ClickHouse": {
     "ConnectionString": "Host=localhost;Port=8123;Username=default;password=;Database=database_name;",
-    "StoreMode": 1
+    "StoreMode": 1,
+    "ConnectTryCount": -1,
+    "ConnectSleepTimeout": 1000
   }
 ```
 где:</br>
 1. *ConnectionString* - строка подключения к ClickHouse
 2. *StoreMode* - как хранить различные журналы регистраций:</br>
    *1* - Каждый журнал регистрации - отдельная **база данных**</br>
-   *2* - Каждый журнал регитрации - отдельная **таблица**
+   *2* - Каждый журнал регитрации - отдельная **таблица**</br>
+3. *ConnectTryCount* - при недоступности ClickHouse сколько раз пробовать переподключиться (-1 - бесконечно)</br>
+4. *ConnectSleepTimeout* - время в милисекундах между попытками подключения к ClickHouse</br>
 
 **ElasticSearch:**
 ```json
@@ -177,7 +181,9 @@
   },
   "ClickHouse": {
     "ConnectionString": "Host=192.168.0.93;Port=8123;Database=upp_main_el;Username=default;password=;",
-    "StoreMode": 1
+    "StoreMode": 1,
+    "ConnectTryCount": -1,
+    "ConnectSleepTimeout": 1000
   },
   "ElasticSearch": {
     "Nodes": [

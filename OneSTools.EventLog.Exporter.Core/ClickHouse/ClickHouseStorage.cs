@@ -22,12 +22,17 @@ namespace OneSTools.EventLog.Exporter.Core.ClickHouse
         private readonly int _storeMode;
         private readonly string _targetName;
 
-        public ClickHouseStorage(string connectionsString, ILogger<ClickHouseStorage> logger = null, string targetName = "", int storeMode = 1)
+        private readonly int _connectTryCount;
+        private readonly int _connectSleepTimeout;
+
+        public ClickHouseStorage(string connectionsString, ILogger<ClickHouseStorage> logger = null, string targetName = "", int storeMode = 1, int connectTryCount = -1, int connectSleepTimeout = 1000)
         {
             _logger = logger;
             _connectionString = connectionsString;
             _storeMode = storeMode;
             _targetName = targetName;
+            _connectTryCount = connectTryCount;
+            _connectSleepTimeout = connectSleepTimeout;
 
             Init();
         }
@@ -36,7 +41,7 @@ namespace OneSTools.EventLog.Exporter.Core.ClickHouse
         {
             _logger = logger;
             _connectionString = configuration.GetValue("ClickHouse:ConnectionString", "");
-            
+
             Init();
         }
 
@@ -97,7 +102,9 @@ namespace OneSTools.EventLog.Exporter.Core.ClickHouse
                 item.Session
             }).AsEnumerable();
 
-            while(true){
+            int tryCount = _connectTryCount;
+            while (true)
+            {
                 try
                 {
                     await copy.WriteToServerAsync(data, cancellationToken);
@@ -105,8 +112,10 @@ namespace OneSTools.EventLog.Exporter.Core.ClickHouse
                 }
                 catch (Exception ex)
                 {
-                    _logger?.LogWarning(ex, $"Failed to write data to {_databaseName}." + System.Environment.NewLine + ex.Message);
-                    await Task.Delay(1000);
+                    _logger?.LogWarning(ex, $"Failed to write data to {_databaseName}.{_tableName}." + System.Environment.NewLine + ex.Message);
+                    if (_connectTryCount > 0) tryCount--;
+                    if (tryCount == 0) throw;
+                    await Task.Delay(_connectSleepTimeout);
                 }
             }
 
@@ -131,11 +140,14 @@ namespace OneSTools.EventLog.Exporter.Core.ClickHouse
             else
                 _databaseName = FixDatabaseName(_databaseName);
 
-            if (_storeMode == 2) {
+            if (_storeMode == 2)
+            {
                 // in tables
                 _tableName = _targetName;
 
-            } else {
+            }
+            else
+            {
                 // in databases
                 _tableName = TableName;
                 _databaseName = _targetName;
