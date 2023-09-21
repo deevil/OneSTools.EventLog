@@ -48,6 +48,7 @@ namespace OneSTools.EventLog.Exporter.Manager
         {
             var items = new Dictionary<string, (string, string)>();
 
+            //var fileData = File.ReadAllText(_path);
             String fileData = null;
             int tryCount = 10;
             const int sleepTimeout = 1000;
