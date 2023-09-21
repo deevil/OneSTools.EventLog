@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 using OneSTools.BracketsFile;
+using System.Threading.Tasks;
 
 namespace OneSTools.EventLog.Exporter.Manager
 {
@@ -27,8 +28,7 @@ namespace OneSTools.EventLog.Exporter.Manager
             _path = Path.Combine(_folder, "1CV8Clst.lst");
             if (!File.Exists(_path))
                 throw new Exception("Couldn't find LST \"1CV8Clst.lst\" file");
-
-            _infoBases = ReadInfoBases();
+            
             InitializeWatcher();
         }
 
@@ -43,11 +43,30 @@ namespace OneSTools.EventLog.Exporter.Manager
         public event InfoBaseAddedHandler InfoBasesAdded;
         public event InfoBaseDeletedHandler InfoBasesDeleted;
 
-        private Dictionary<string, (string Name, string DataBaseName)> ReadInfoBases()
+        private async Task<Dictionary<string, (string Name, string DataBaseName)>> ReadInfoBases()
         {
             var items = new Dictionary<string, (string, string)>();
 
-            var fileData = File.ReadAllText(_path);
+            String fileData = null;
+            int tryCount = 10;            
+            while (fileData == null)
+            {
+                try
+                {
+                    using StreamReader stream = new StreamReader(new FileStream(_path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)); 
+                    {
+                        fileData = stream.ReadToEnd();
+                    }
+                }
+                catch (Exception e)
+                {
+                    tryCount--;
+                    if (tryCount == 0)
+                        throw new Exception("Ошибка чтения файла списка баз", e);
+                    await Task.Delay(1000);
+                }                
+            }
+            
             var parsedData = BracketsParser.ParseBlock(fileData);
 
             var infoBasesNode = parsedData[2];
@@ -74,9 +93,9 @@ namespace OneSTools.EventLog.Exporter.Manager
             return items;
         }
 
-        private void ReadInfoBasesAndRaiseEvents()
+        private async void ReadInfoBasesAndRaiseEvents()
         {
-            var newInfoBases = ReadInfoBases();
+            var newInfoBases = await ReadInfoBases();
 
             var added = newInfoBases.Except(_infoBases);
             foreach (var (key, (item1, item2)) in added)
@@ -89,8 +108,9 @@ namespace OneSTools.EventLog.Exporter.Manager
             _infoBases = newInfoBases;
         }
 
-        private void InitializeWatcher()
+        private async void InitializeWatcher()
         {
+            _infoBases = await ReadInfoBases();
             _clstWatcher = new FileSystemWatcher(_folder, "1CV8Clst.lst")
             {
                 NotifyFilter = NotifyFilters.CreationTime | NotifyFilters.LastWrite

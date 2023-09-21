@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
+using Timers = System.Timers;
 
 namespace OneSTools.EventLog
 {
@@ -14,8 +15,8 @@ namespace OneSTools.EventLog
         private readonly EventLogReaderSettings _settings;
         private bool _disposedValue;
         private LgfReader _lgfReader;
-        private ManualResetEvent _lgpChangedCreated;
-        private FileSystemWatcher _lgpFilesWatcher;
+        private ManualResetEvent _lgpChangedCreated;        
+        private Timers.Timer _Timer;
         private LgpReader _lgpReader;
 
         public EventLogReader(EventLogReaderSettings settings)
@@ -57,8 +58,8 @@ namespace OneSTools.EventLog
             if (_lgpReader == null)
                 SetNextLgpReader();
 
-            if (_settings.LiveMode && _lgpFilesWatcher == null)
-                StartLgpFilesWatcher();
+            if (_settings.LiveMode && _Timer == null)
+                StartTimer();
 
             EventLogItem item = null;
 
@@ -114,12 +115,12 @@ namespace OneSTools.EventLog
 
         private bool SetNextLgpReader()
         {
-            var currentReaderLastWriteDateTime = DateTime.MinValue;
+            string currentFileName = "19000101000000";
 
             if (_lgpReader != null)
-                currentReaderLastWriteDateTime = new FileInfo(_lgpReader.LgpPath).LastWriteTime;
+                currentFileName = new FileInfo(_lgpReader.LgpPath).Name;
 
-            var filesDateTime = new List<(string, DateTime)>();
+            var filesDateTime = new List<(string, string)>();
 
             var files = Directory.GetFiles(_settings.LogFolder, "*.lgp");
 
@@ -127,16 +128,15 @@ namespace OneSTools.EventLog
                 if (_lgpReader != null)
                 {
                     if (_lgpReader.LgpPath != file)
-                        filesDateTime.Add((file, new FileInfo(file).LastWriteTime));
+                        filesDateTime.Add((file, new FileInfo(file).Name));
                 }
                 else
                 {
-                    filesDateTime.Add((file, new FileInfo(file).LastWriteTime));
+                    filesDateTime.Add((file, new FileInfo(file).Name));
                 }
-
-            var orderedFiles = filesDateTime.OrderBy(c => c.Item2).ToList();
-
-            var (item1, _) = orderedFiles.FirstOrDefault(c => c.Item2 > currentReaderLastWriteDateTime);
+            
+            filesDateTime.Sort((x, y) => string.Compare(y.Item2, x.Item2));
+            var (item1, _) = filesDateTime.FirstOrDefault(c => string.Compare(c.Item2, currentFileName) > 0);
 
             if (string.IsNullOrEmpty(item1))
             {
@@ -151,31 +151,28 @@ namespace OneSTools.EventLog
             return true;
         }
 
-        private void StartLgpFilesWatcher()
+        private void StartTimer()
         {
             _lgpChangedCreated = new ManualResetEvent(false);
 
-            _lgpFilesWatcher = new FileSystemWatcher(_settings.LogFolder, "*.lgp")
-            {
-                NotifyFilter = NotifyFilters.CreationTime | NotifyFilters.LastWrite | NotifyFilters.Size
-            };
-            _lgpFilesWatcher.Changed += LgpFilesWatcher_Event;
-            _lgpFilesWatcher.Created += LgpFilesWatcher_Event;
-            _lgpFilesWatcher.EnableRaisingEvents = true;
+            _Timer = new Timers.Timer(_settings.ReadingTimeout);
+            _Timer.Elapsed += OnTimedEvent;
+            _Timer.AutoReset = true;
+            _Timer.Enabled = true;
         }
 
-        private void LgpFilesWatcher_Event(object sender, FileSystemEventArgs e)
+        private void OnTimedEvent(Object source, Timers.ElapsedEventArgs e)
         {
-            if (e.ChangeType == WatcherChangeTypes.Created || e.ChangeType == WatcherChangeTypes.Changed)
-                _lgpChangedCreated.Set();
+            _lgpChangedCreated.Set();
         }
 
         protected virtual void Dispose(bool disposing)
         {
             if (!_disposedValue)
             {
-                _lgpFilesWatcher?.Dispose();
-                _lgpFilesWatcher = null;
+                _Timer?.Stop();
+                _Timer?.Dispose();
+                _Timer = null;
                 _lgpChangedCreated?.Dispose();
                 _lgpChangedCreated = null;
                 _lgfReader?.Dispose();
