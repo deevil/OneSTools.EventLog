@@ -28,5 +28,7 @@ namespace OneSTools.EventLog
         public virtual int MainPort { get; set; } = 0;
         public virtual int AddPort { get; set; } = 0;
         public virtual long Session { get; set; } = 0;
+        public virtual string InfobaseName { get; set; } = "";
+        public virtual string LogServer { get; set; } = "";
     }
 }

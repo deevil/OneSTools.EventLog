@@ -8,6 +8,7 @@ using ClickHouse.Client.ADO;
 using ClickHouse.Client.Copy;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Dakov.Transliterator;
 
 namespace OneSTools.EventLog.Exporter.Core.ClickHouse
 {
@@ -35,12 +36,17 @@ namespace OneSTools.EventLog.Exporter.Core.ClickHouse
             Init();
         }
 
-        public async Task<EventLogPosition> ReadEventLogPositionAsync(CancellationToken cancellationToken = default)
+        public async Task<EventLogPosition> ReadEventLogPositionAsync(CancellationToken cancellationToken = default, string infobaseName = "")
         {
             await CreateConnectionAsync(cancellationToken);
 
+            var infobaseNameIsNullOrEmpty = string.IsNullOrEmpty(infobaseName) ? "TRUE" : "FALSE";
+
             var commandText =
-                $"SELECT TOP 1 FileName, EndPosition, LgfEndPosition, Id FROM {TableName} ORDER BY Id DESC";
+                $"SELECT TOP 1 FileName, EndPosition, LgfEndPosition, Id FROM {TableName} " +
+                $"WHERE (InfobaseName = '{infobaseName}' OR {infobaseNameIsNullOrEmpty}) " +
+                $"AND (LogServer ='{Environment.MachineName}')" +
+                $"ORDER BY Id DESC";
 
             await using var cmd = _connection.CreateCommand();
             cmd.CommandText = commandText;
@@ -89,7 +95,9 @@ namespace OneSTools.EventLog.Exporter.Core.ClickHouse
                 item.Server ?? "",
                 item.MainPort,
                 item.AddPort,
-                item.Session
+                item.Session,
+                item.InfobaseName,
+                item.LogServer = Environment.MachineName
             }).AsEnumerable();
 
             try
@@ -98,7 +106,8 @@ namespace OneSTools.EventLog.Exporter.Core.ClickHouse
             }
             catch (Exception ex)
             {
-                _logger?.LogError(ex, $"Failed to write data to {_databaseName}");
+                var ib = data.FirstOrDefault()?[25].ToString();
+                _logger?.LogError(ex, $"Failed to write data to {_databaseName}, infobase: {ib}");
                 throw;
             }
 
@@ -124,8 +133,8 @@ namespace OneSTools.EventLog.Exporter.Core.ClickHouse
                 _databaseName = FixDatabaseName(_databaseName);
         }
 
-        private static string FixDatabaseName(string name)
-            => Regex.Replace(name, @"\W", "_", RegexOptions.Compiled);
+        private static string FixDatabaseName(string name) =>
+            Transliterator.CyrillicToLatin(Regex.Replace(name, @"\W", "_", RegexOptions.Compiled));
 
         private async Task CreateConnectionAsync(CancellationToken cancellationToken = default)
         {
@@ -174,11 +183,13 @@ namespace OneSTools.EventLog.Exporter.Core.ClickHouse
                     Server LowCardinality(String),
                     MainPort Int32 Codec(DoubleDelta, LZ4),
                     AddPort Int32 Codec(DoubleDelta, LZ4),
-                    Session Int64 Codec(DoubleDelta, LZ4)
+                    Session Int64 Codec(DoubleDelta, LZ4),
+                    InfobaseName LowCardinality(String),
+                    LogServer LowCardinality(String)
                 )
                 engine = MergeTree()
-                PARTITION BY (toYYYYMM(DateTime))
-                ORDER BY (DateTime, EndPosition)
+                PARTITION BY (InfobaseName, LogServer, toYYYYMM(DateTime))
+                ORDER BY (InfobaseName, LogServer, DateTime, EndPosition, User)
                 SETTINGS index_granularity = 8192;";
 
             await using var cmd = _connection.CreateCommand();

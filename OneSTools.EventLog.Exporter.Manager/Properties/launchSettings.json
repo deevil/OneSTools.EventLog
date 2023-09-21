@@ -3,7 +3,7 @@
     "OneSTools.EventLog.Exporter.Manager": {
       "commandName": "Project",
       "environmentVariables": {
-        "DOTNET_ENVIRONMENT": "Development"
+        "DOTNET_ENVIRONMENT": "Production"
       }
     }
   }
