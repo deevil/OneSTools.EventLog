@@ -11,6 +11,7 @@ using NodaTime;
 using OneSTools.EventLog.Exporter.Core;
 using OneSTools.EventLog.Exporter.Core.ClickHouse;
 using OneSTools.EventLog.Exporter.Core.ElasticSearch;
+using OneSTools.EventLog.Exporter.Core.Log;
 
 namespace OneSTools.EventLog.Exporter.Manager
 {
