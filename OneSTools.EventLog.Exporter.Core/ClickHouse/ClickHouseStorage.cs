@@ -111,11 +111,7 @@ namespace OneSTools.EventLog.Exporter.Core.ClickHouse
             catch (Exception ex)
             {
                 _logger?.LogError(ex, $"Failed to write data to {_databaseName}.{_tableName}");
-                _logger?.LogError($"Count {entities.Count}");
-                _logger?.LogError($"DateTime {entities[0].DateTime}");
-                _logger?.LogError($"FileName {entities[0].FileName}");
-                _logger?.LogError($"Comment {entities[0].Comment}");
-                _logger?.LogError($"Item {JsonSerializer.Serialize(entities[0])}");
+                _logger?.LogError($"Count {entities.Count}\r\nItem:\r\n\r\n{JsonSerializer.Serialize(entities)}\r\n");
                 throw;
             }
 
