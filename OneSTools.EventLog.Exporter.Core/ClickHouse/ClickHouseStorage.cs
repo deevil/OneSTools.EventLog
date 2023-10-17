@@ -39,7 +39,7 @@ namespace OneSTools.EventLog.Exporter.Core.ClickHouse
             // Constructor - EventLogExporter
             _logger = logger;
             _connectionString = configuration.GetValue("ClickHouse:ConnectionString", "");
-            //_storeMode = configuration.GetValue("ClickHouse:StoreMode", 1);
+            // Use DB from connection string + default table name
             _storeMode = 2;
             _targetName = TableName;
 
