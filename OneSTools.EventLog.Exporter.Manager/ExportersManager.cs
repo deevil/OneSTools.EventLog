@@ -184,7 +184,7 @@ namespace OneSTools.EventLog.Exporter.Manager
                                 try
                                 {
                                     using var storage = GetStorage(dataBaseName);
-                                    using var exporter = new EventLogExporter(settings, storage, logger);
+                                    using var exporter = new EventLogExporter(settings, storage, logger, dataBaseName);
                                     await exporter.StartAsync(cts.Token);
                                 }
                                 catch (TaskCanceledException)

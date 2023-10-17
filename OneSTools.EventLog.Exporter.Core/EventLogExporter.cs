@@ -34,9 +34,12 @@ namespace OneSTools.EventLog.Exporter.Core
         private EventLogReader _eventLogReader;
         private ActionBlock<EventLogItem[]> _writeBlock;
 
+        private string _database = "";
+
         public EventLogExporter(EventLogExporterSettings settings, IEventLogStorage storage,
-            ILogger<EventLogExporter> logger = null)
+            ILogger<EventLogExporter> logger = null, string database = "")
         {
+            // Constructor - EventLogExportersManager
             _logger = logger;
             _storage = storage;
 
@@ -49,12 +52,16 @@ namespace OneSTools.EventLog.Exporter.Core
             _readingTimeout = settings.ReadingTimeout;
             _skipEventsBeforeDate = settings.SkipEventsBeforeDate;
 
+            if (database != "") { _database = database + " | ";  }
+            
+
             CheckSettings();
         }
 
         public EventLogExporter(ILogger<EventLogExporter> logger, IConfiguration configuration,
             IEventLogStorage storage)
         {
+            // Constructor - EventLogExporter
             _logger = logger;
             _storage = storage;
 
@@ -95,12 +102,12 @@ namespace OneSTools.EventLog.Exporter.Core
 
         public async Task StartAsync(CancellationToken cancellationToken = default)
         {
-            _logger?.LogInformation($"Log folder: {_logFolder}");
+            _logger?.LogInformation($"{_database}Log folder: {_logFolder}");
 
             if (_loadArchive)
-                _logger?.LogWarning("\"Load archive\" mode enabled");
+                _logger?.LogWarning($"{_database}\"Load archive\" mode enabled");
 
-            _logger?.LogInformation($"Portion per request: {_portion}");
+            _logger?.LogInformation($"{_database}Portion per request: {_portion}");
 
             InitializeDataflow(cancellationToken);
 
@@ -136,7 +143,7 @@ namespace OneSTools.EventLog.Exporter.Core
                         if (!string.IsNullOrEmpty(_eventLogReader.LgpFileName) &&
                             _currentLgpFile != _eventLogReader.LgpFileName)
                         {
-                            _logger?.LogInformation($"Reader started reading {_eventLogReader.LgpFileName} | {_logFolder}");
+                            _logger?.LogInformation($"{_database}Reader started reading {_eventLogReader.LgpFileName}");
 
                             _currentLgpFile = _eventLogReader.LgpFileName;
                         }
@@ -210,8 +217,7 @@ namespace OneSTools.EventLog.Exporter.Core
 
                     if (!File.Exists(lgpFilePath))
                     {
-                        _logger?.LogWarning(
-                            $"Lgp file ({lgpFilePath}) doesn't exist. The reading will be started from the first found file");
+                        _logger?.LogWarning($"{_database}Lgp file ({lgpFilePath}) doesn't exist. The reading will be started from the first found file");
                     }
                     else
                     {
@@ -220,19 +226,17 @@ namespace OneSTools.EventLog.Exporter.Core
                         eventLogReaderSettings.LgfStartPosition = position.LgfEndPosition;
                         eventLogReaderSettings.ItemId = position.Id;
 
-                        _logger?.LogInformation(
-                            $"File {position.FileName} will be read from {position.EndPosition} position, LGF file will be read from {position.LgfEndPosition} position");
+                        _logger?.LogInformation($"{_database}File {position.FileName} will be read from {position.EndPosition} position, LGF file will be read from {position.LgfEndPosition} position");
                     }
                 }
                 else
                 {
-                    _logger?.LogInformation(
-                        "There're no log items in the database, first found log file will be read from 0 position");
+                    _logger?.LogInformation($"{_database}There're no log items in the database, first found log file will be read from 0 position");
                 }
             }
             else
             {
-                _logger?.LogWarning("LoadArchive parameter is true. Live mode will not be used");
+                _logger?.LogWarning("{_database}LoadArchive parameter is true. Live mode will not be used");
 
                 eventLogReaderSettings.LiveMode = false;
             }
