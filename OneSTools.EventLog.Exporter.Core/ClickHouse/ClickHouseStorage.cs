@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -24,6 +25,7 @@ namespace OneSTools.EventLog.Exporter.Core.ClickHouse
 
         public ClickHouseStorage(string connectionsString, ILogger<ClickHouseStorage> logger = null, string targetName = "", int storeMode = 1)
         {
+            // Constructor - EventLogExportersManager
             _logger = logger;
             _connectionString = connectionsString;
             _storeMode = storeMode;
@@ -34,9 +36,13 @@ namespace OneSTools.EventLog.Exporter.Core.ClickHouse
 
         public ClickHouseStorage(ILogger<ClickHouseStorage> logger, IConfiguration configuration)
         {
+            // Constructor - EventLogExporter
             _logger = logger;
             _connectionString = configuration.GetValue("ClickHouse:ConnectionString", "");
-            
+            //_storeMode = configuration.GetValue("ClickHouse:StoreMode", 1);
+            _storeMode = 2;
+            _targetName = TableName;
+
             Init();
         }
 
@@ -99,11 +105,17 @@ namespace OneSTools.EventLog.Exporter.Core.ClickHouse
 
             try
             {
-                await copy.WriteToServerAsync(data, cancellationToken);
+                var columns = new[] { "FileName", "EndPosition", "LgfEndPosition", "Id", "DateTime", "TransactionStatus", "TransactionDate", "TransactionNumber", "UserUuid", "User", "Computer", "Application", "Connection", "Event", "Severity", "Comment", "MetadataUuid", "Metadata", "Data", "DataPresentation", "Server", "MainPort", "AddPort", "Session" };
+                await copy.WriteToServerAsync(data, columns, cancellationToken);
             }
             catch (Exception ex)
             {
                 _logger?.LogError(ex, $"Failed to write data to {_databaseName}.{_tableName}");
+                _logger?.LogError($"Count {entities.Count}");
+                _logger?.LogError($"DateTime {entities[0].DateTime}");
+                _logger?.LogError($"FileName {entities[0].FileName}");
+                _logger?.LogError($"Comment {entities[0].Comment}");
+                _logger?.LogError($"Item {JsonSerializer.Serialize(entities[0])}");
                 throw;
             }
 
