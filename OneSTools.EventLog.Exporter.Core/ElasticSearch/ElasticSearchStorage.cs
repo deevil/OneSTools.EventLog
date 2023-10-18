@@ -8,7 +8,6 @@ using Elasticsearch.Net;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Nest;
-using OneSTools.EventLog.Exporter.Core.Log;
 
 namespace OneSTools.EventLog.Exporter.Core.ElasticSearch
 {
@@ -53,8 +52,7 @@ namespace OneSTools.EventLog.Exporter.Core.ElasticSearch
 
             CheckSettings();
         }
-
-        public async Task<EventLogPosition> ReadEventLogPositionAsync(CancellationToken cancellationToken = default)
+        public async Task<EventLogPosition> ReadEventLogPositionAsync(CancellationToken cancellationToken = default, string filename = "")
         {
             if (_client is null)
                 await ConnectAsync(cancellationToken);

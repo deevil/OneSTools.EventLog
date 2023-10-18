@@ -6,8 +6,8 @@ using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Nest;
 using NodaTime;
-using OneSTools.EventLog.Exporter.Core.Log;
 
 namespace OneSTools.EventLog.Exporter.Core
 {
@@ -28,6 +28,8 @@ namespace OneSTools.EventLog.Exporter.Core
         private readonly DateTime _skipEventsBeforeDate;
 
         private string _currentLgpFile;
+        private EventLogPosition _currentPos;
+        private long _counterSkip = 0;
 
         private bool _disposedValue;
 
@@ -116,6 +118,10 @@ namespace OneSTools.EventLog.Exporter.Core
             {
                 var settings = await GetReaderSettingsAsync(cancellationToken);
                 _eventLogReader = new EventLogReader(settings);
+                
+                // Init file reader
+                _currentLgpFile = settings.LgpFileName;
+                _logger?.LogInformation($"{_database}Reader started reading {_eventLogReader.LgpFileName}");
 
                 while (!cancellationToken.IsCancellationRequested && !_writeBlock.Completion.IsCompleted)
                 {
@@ -139,15 +145,30 @@ namespace OneSTools.EventLog.Exporter.Core
 
                     if (item != null)
                     {
-                        await SendAsync(_batchBlock, item, cancellationToken);
-
-                        if (!string.IsNullOrEmpty(_eventLogReader.LgpFileName) &&
-                            _currentLgpFile != _eventLogReader.LgpFileName)
-                        {
-                            _logger?.LogInformation($"{_database}Reader started reading {_eventLogReader.LgpFileName}");
+                        if (!string.IsNullOrEmpty(_eventLogReader.LgpFileName) && _currentLgpFile != _eventLogReader.LgpFileName) {
+                            _logger?.LogInformation($"{_database}Reader started/changed reading {_eventLogReader.LgpFileName}");
 
                             _currentLgpFile = _eventLogReader.LgpFileName;
+
+                            var newPos = await _storage.ReadEventLogPositionAsync(cancellationToken, _eventLogReader.LgpFileName);
+                            if (newPos != null) {
+                                _currentPos = newPos;
+                            } else {
+                                _currentPos = new EventLogPosition(item.FileName, 0, item.LgfEndPosition, item.Id);
+                            }
                         }
+
+                        if (item.EndPosition > _currentPos.EndPosition) {
+                            await SendAsync(_batchBlock, item, cancellationToken);
+                            if (_counterSkip > 0) {
+                                _logger?.LogInformation($"{_database}Reader skipped reading {_counterSkip} items. {_eventLogReader.LgpFileName}");
+                                _counterSkip = 0;
+                            }
+                        } else {
+                            _counterSkip++;
+                        }
+
+
                     }
                     else if (!settings.LiveMode)
                     {
@@ -214,6 +235,7 @@ namespace OneSTools.EventLog.Exporter.Core
 
                 if (position != null)
                 {
+                    _currentPos = position;
                     var lgpFilePath = Path.Combine(_logFolder, position.FileName);
 
                     if (!File.Exists(lgpFilePath))

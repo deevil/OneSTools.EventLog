@@ -9,7 +9,6 @@ using ClickHouse.Client.ADO;
 using ClickHouse.Client.Copy;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
-using OneSTools.EventLog.Exporter.Core.Log;
 
 namespace OneSTools.EventLog.Exporter.Core.ClickHouse
 {
@@ -47,13 +46,17 @@ namespace OneSTools.EventLog.Exporter.Core.ClickHouse
             Init();
         }
 
-        public async Task<EventLogPosition> ReadEventLogPositionAsync(CancellationToken cancellationToken = default)
+        public async Task<EventLogPosition> ReadEventLogPositionAsync(CancellationToken cancellationToken = default, string filename = "")
         {
             await CreateConnectionAsync(cancellationToken);
 
-            var commandText =
-                $"SELECT TOP 1 FileName, EndPosition, LgfEndPosition, Id FROM {_tableName} ORDER BY DateTime DESC, EndPosition DESC";
+            var commandText = $"SELECT TOP 1 FileName, EndPosition, LgfEndPosition, Id FROM {_tableName} ORDER BY DateTime DESC, EndPosition DESC";
 
+            if (filename != "")
+            {
+                commandText = $"SELECT TOP 1 FileName, EndPosition, LgfEndPosition, Id FROM {_tableName} WHERE FileName = '{filename}' ORDER BY EndPosition DESC";
+            }
+            
             await using var cmd = _connection.CreateCommand();
             cmd.CommandText = commandText;
 
