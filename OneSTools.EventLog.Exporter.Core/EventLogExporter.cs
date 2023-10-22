@@ -146,6 +146,12 @@ namespace OneSTools.EventLog.Exporter.Core
                     if (item != null)
                     {
                         if (!string.IsNullOrEmpty(_eventLogReader.LgpFileName) && _currentLgpFile != _eventLogReader.LgpFileName) {
+                            if (_counterSkip > 0)
+                            {
+                                _logger?.LogInformation($"{_database}Reader skipped reading {_counterSkip} items. {_currentLgpFile}");
+                                _counterSkip = 0;
+                            }
+
                             _logger?.LogInformation($"{_database}Reader started/changed reading {_eventLogReader.LgpFileName}");
 
                             _currentLgpFile = _eventLogReader.LgpFileName;
@@ -162,10 +168,6 @@ namespace OneSTools.EventLog.Exporter.Core
 
                         if (item.EndPosition > _currentPos.EndPosition) {
                             await SendAsync(_batchBlock, item, cancellationToken);
-                            if (_counterSkip > 0) {
-                                _logger?.LogInformation($"{_database}Reader skipped reading {_counterSkip} items. {_eventLogReader.LgpFileName}");
-                                _counterSkip = 0;
-                            }
                         } else {
                             _counterSkip++;
                             _eventLogReader.BackId();
