@@ -149,6 +149,8 @@ namespace OneSTools.EventLog.Exporter.Core
                             _logger?.LogInformation($"{_database}Reader started/changed reading {_eventLogReader.LgpFileName}");
 
                             _currentLgpFile = _eventLogReader.LgpFileName;
+                            // Need fix batch
+                            forceSending = true;
 
                             var newPos = await _storage.ReadEventLogPositionAsync(cancellationToken, _eventLogReader.LgpFileName);
                             if (newPos != null) {
