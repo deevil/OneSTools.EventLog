@@ -168,6 +168,7 @@ namespace OneSTools.EventLog.Exporter.Core
                             }
                         } else {
                             _counterSkip++;
+                            _eventLogReader.BackId();
                         }
 
 
