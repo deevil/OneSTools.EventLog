@@ -35,6 +35,7 @@ namespace OneSTools.EventLog.Exporter.Manager
         private readonly int _portion;
         private readonly int _readingTimeout;
         private readonly Dictionary<string, CancellationTokenSource> _runExporters = new();
+        private readonly HashSet<string> _skippedBases = new();
         private readonly string _separation;
 
         private readonly IServiceProvider _serviceProvider;
@@ -133,7 +134,32 @@ namespace OneSTools.EventLog.Exporter.Manager
                 _clstWatchers.Add(clstWatcher);
             }
 
-            await Task.Factory.StartNew(stoppingToken.WaitHandle.WaitOne, stoppingToken);
+            while (!stoppingToken.IsCancellationRequested)
+            {
+                try
+                {
+                    await Task.Delay(60000, stoppingToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
+
+                foreach (var watcher in _clstWatchers)
+                {
+                    foreach (var (key, (name, dataBaseName)) in watcher.InfoBases)
+                    {
+                        bool isRunning;
+                        lock (_runExporters)
+                        {
+                            isRunning = _runExporters.ContainsKey(key);
+                        }
+
+                        if (!isRunning)
+                            StartExporter(key, name, dataBaseName);
+                    }
+                }
+            }
         }
 
         private void ClstWatcher_InfoBasesDeleted(object sender, ClstEventArgs args)
@@ -152,26 +178,41 @@ namespace OneSTools.EventLog.Exporter.Manager
 
             if (!Directory.Exists(logFolder))
             {
-                _logger?.LogInformation($"Event log folder of \"{name}\" information base doesn't exist, it won't be handled");
+                lock (_skippedBases)
+                {
+                    if (_skippedBases.Add(path))
+                        _logger?.LogInformation($"Event log folder of \"{name}\" information base doesn't exist, skipping");
+                }
                 return;
             }
 
-            // Check if this is a new SQLite event log format
             var lgdPath = Path.Combine(logFolder, "1Cv8.lgd");
-            if (File.Exists(lgdPath))
+            var lgfPath = Path.Combine(logFolder, "1Cv8.lgf");
+            var hasLgpFiles = Directory.EnumerateFiles(logFolder, "*.lgp").Any();
+
+            var isPureSqlite = File.Exists(lgdPath) && !hasLgpFiles;
+            var isMissingFiles = !File.Exists(lgfPath) && !hasLgpFiles;
+
+            if (isPureSqlite || isMissingFiles)
             {
-                _logger?.LogInformation(
-                    $"Event log of \"{name}\" information base is in SQLite format (1Cv8.lgd), it won't be handled");
+                lock (_skippedBases)
+                {
+                    if (_skippedBases.Add(path))
+                    {
+                        if (isPureSqlite)
+                            _logger?.LogInformation(
+                                $"Event log of \"{name}\" information base is in SQLite format (1Cv8.lgd) with no .lgp files, skipping");
+                        else
+                            _logger?.LogInformation(
+                                $"Event log of \"{name}\" information base has no 1Cv8.lgf or .lgp files, skipping");
+                    }
+                }
                 return;
             }
 
-            // Check this is an old event log format
-            var lgfPath = Path.Combine(logFolder, "1Cv8.lgf");
-            if (!File.Exists(lgfPath))
+            lock (_skippedBases)
             {
-                _logger?.LogInformation(
-                    $"Event log of \"{name}\" information base is in \"new\" format (1Cv8.lgf not found), it won't be handled");
-                return;
+                _skippedBases.Remove(path);
             }
 
             lock (_runExporters)
@@ -238,6 +279,11 @@ namespace OneSTools.EventLog.Exporter.Manager
 
         private void StopExporter(string id, string name)
         {
+            lock (_skippedBases)
+            {
+                _skippedBases.Remove(id);
+            }
+
             lock (_runExporters)
             {
                 if (_runExporters.TryGetValue(id, out var cts))
