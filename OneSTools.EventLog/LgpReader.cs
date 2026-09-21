@@ -17,7 +17,6 @@ namespace OneSTools.EventLog
         private LgfReader _lgfReader;
         private FileSystemWatcher _lgpFileWatcher;
         private DateTime _skipEventsBeforeDate;
-        private long _initialPositionToCheck = -1;
 
         public LgpReader(string lgpPath, DateTimeZone timeZone, LgfReader lgfReader, DateTime skipEventsBeforeDate)
         {
@@ -50,11 +49,7 @@ namespace OneSTools.EventLog
         {
             InitializeStreams();
 
-            if (position > _fileStream.Length)
-                throw new EventLogPositionInvalidException(LgpFileName, position);
-
             _bracketsReader.Position = position;
-            _initialPositionToCheck = position;
         }
 
         private void InitializeStreams()
@@ -98,22 +93,6 @@ namespace OneSTools.EventLog
                 if (data.Length == 0)
                     return null;
 
-                if (_initialPositionToCheck > 0)
-                {
-                    long checkedPos = _initialPositionToCheck;
-                    _initialPositionToCheck = -1;
-
-                    var parsed = BracketsParser.ParseBlock(data);
-                    if (parsed == null || parsed.Count < 17)
-                        throw new EventLogPositionInvalidException(LgpFileName, checkedPos);
-
-                    var item = ParseEventLogItemData(parsed, data, endPosition, cancellationToken);
-                    if (item != null)
-                        return item;
-                    else
-                        throw new EventLogPositionInvalidException(LgpFileName, checkedPos);
-                }
-
                 var eventLogItem = ParseEventLogItemData(data, endPosition, cancellationToken);
                 if (eventLogItem != null)
                     return eventLogItem;
@@ -124,18 +103,15 @@ namespace OneSTools.EventLog
             CancellationToken cancellationToken = default)
         {
             var parsedData = BracketsParser.ParseBlock(eventLogItemData);
-            return ParseEventLogItemData(parsedData, eventLogItemData, endPosition, cancellationToken);
-        }
 
-        private EventLogItem ParseEventLogItemData(BracketsNode parsedData, StringBuilder eventLogItemData, long endPosition,
-            CancellationToken cancellationToken = default)
-        {
             if (parsedData == null || parsedData.Count < 17)
-                return null;
+                throw new InvalidDataException(
+                    $"Failed to parse event log item in \"{LgpFileName}\" at offset {endPosition}: unexpected block structure ({parsedData?.Count ?? 0} elements). File may be corrupted or position is invalid.");
 
             var transactionData = parsedData[2];
             if (transactionData == null || transactionData.Count < 2)
-                return null;
+                throw new InvalidDataException(
+                    $"Failed to parse event log item in \"{LgpFileName}\" at offset {endPosition}: invalid transaction data structure.");
 
             DateTime dateTime = default;
             try

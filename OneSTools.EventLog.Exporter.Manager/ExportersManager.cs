@@ -9,7 +9,6 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using NodaTime;
-using OneSTools.EventLog;
 using OneSTools.EventLog.Exporter.Core;
 using OneSTools.EventLog.Exporter.Core.ClickHouse;
 using OneSTools.EventLog.Exporter.Core.ElasticSearch;
@@ -261,22 +260,6 @@ namespace OneSTools.EventLog.Exporter.Manager
                             }
                             catch (OperationCanceledException)
                             {
-                            }
-                            catch (EventLogPositionInvalidException ex)
-                            {
-                                _logger?.LogCritical(ex.Message);
-                                _logger?.LogWarning(
-                                    $"Exporter for \"{name}\" paused for 10 minutes due to invalid file position. Fix the stored position or file to resume.");
-
-                                try
-                                {
-                                    await Task.Delay(TimeSpan.FromMinutes(10), cts.Token);
-                                }
-                                catch (OperationCanceledException)
-                                {
-                                    break;
-                                }
-                                continue;
                             }
                             catch (Exception ex)
                             {

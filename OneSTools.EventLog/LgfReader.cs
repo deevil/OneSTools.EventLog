@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading;
@@ -47,6 +47,8 @@ namespace OneSTools.EventLog
             while (!stop && !_bracketsReader.EndOfStream && !cancellationToken.IsCancellationRequested)
             {
                 var itemData = _bracketsReader.NextNode();
+                if (itemData == null)
+                    break;
 
                 var ot = (ObjectType) (int) itemData[0];
 
