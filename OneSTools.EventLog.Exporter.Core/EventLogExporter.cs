@@ -126,7 +126,7 @@ namespace OneSTools.EventLog.Exporter.Core
                 
                 // Init file reader
                 _currentLgpFile = settings.LgpFileName;
-                _logger?.LogInformation($"{_database}Reader started reading {_eventLogReader.LgpFileName}");
+                _logger?.LogWarning($"{_database}Reader started reading {_eventLogReader.LgpFileName}");
 
                 while (!token.IsCancellationRequested && !_writeBlock.Completion.IsCompleted)
                 {
@@ -270,12 +270,12 @@ namespace OneSTools.EventLog.Exporter.Core
                         eventLogReaderSettings.LgfStartPosition = position.LgfEndPosition;
                         eventLogReaderSettings.ItemId = position.Id;
 
-                        _logger?.LogInformation($"{_database}File {position.FileName} will be read from {position.EndPosition} position, LGF file will be read from {position.LgfEndPosition} position");
+                        _logger?.LogWarning($"{_database}File {position.FileName} will be read from {position.EndPosition} position, LGF file will be read from {position.LgfEndPosition} position");
                     }
                 }
                 else
                 {
-                    _logger?.LogInformation($"{_database}There're no log items in the database, first found log file will be read from 0 position");
+                    _logger?.LogWarning($"{_database}There're no log items in the database, first found log file will be read from 0 position");
                 }
             }
             else

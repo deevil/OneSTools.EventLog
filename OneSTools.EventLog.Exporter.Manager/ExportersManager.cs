@@ -121,6 +121,8 @@ namespace OneSTools.EventLog.Exporter.Manager
                 }
             });
 
+            _logger?.LogWarning($"ExportersManager service started. Monitoring {_clstFolders.Count} cluster folder(s)");
+
             foreach (var clstFolder in _clstFolders)
             {
                 var clstWatcher = new ClstWatcher(clstFolder.Folder, clstFolder.Templates);
@@ -181,7 +183,7 @@ namespace OneSTools.EventLog.Exporter.Manager
                 lock (_skippedBases)
                 {
                     if (_skippedBases.Add(path))
-                        _logger?.LogInformation($"Event log folder of \"{name}\" information base doesn't exist, skipping");
+                        _logger?.LogWarning($"Event log folder of \"{name}\" information base doesn't exist, skipping");
                 }
                 return;
             }
@@ -200,10 +202,10 @@ namespace OneSTools.EventLog.Exporter.Manager
                     if (_skippedBases.Add(path))
                     {
                         if (isPureSqlite)
-                            _logger?.LogInformation(
+                            _logger?.LogWarning(
                                 $"Event log of \"{name}\" information base is in SQLite format (1Cv8.lgd) with no .lgp files, skipping");
                         else
-                            _logger?.LogInformation(
+                            _logger?.LogWarning(
                                 $"Event log of \"{name}\" information base has no 1Cv8.lgf or .lgp files, skipping");
                     }
                 }
@@ -271,7 +273,7 @@ namespace OneSTools.EventLog.Exporter.Manager
                     }, cts.Token);
                     _runExporters.Add(path, cts);
 
-                    _logger?.LogInformation(
+                    _logger?.LogWarning(
                         $"Event log exporter for \"{name}\" information base to \"{dataBaseName}\" is started");
                 }
             }
@@ -291,7 +293,7 @@ namespace OneSTools.EventLog.Exporter.Manager
                     cts.Cancel();
                     cts.Dispose();
                     _runExporters.Remove(id);
-                    _logger?.LogInformation($"Event log exporter for \"{name}\" information base is stopped");
+                    _logger?.LogWarning($"Event log exporter for \"{name}\" information base is stopped");
                 }
             }
         }
