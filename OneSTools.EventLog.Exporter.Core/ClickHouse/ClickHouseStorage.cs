@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -49,13 +50,12 @@ namespace OneSTools.EventLog.Exporter.Core.ClickHouse
         {
             await CreateConnectionAsync(cancellationToken);
 
-            var commandText =
-                $"SELECT TOP 1 FileName, EndPosition, LgfEndPosition, Id FROM {_tableName} ORDER BY DateTime DESC, EndPosition DESC";
+            var commandText = $"SELECT TOP 1 FileName, EndPosition, LgfEndPosition, Id FROM {_tableName} ORDER BY DateTime DESC, EndPosition DESC";
 
-            if (filename != "") {
+            if (filename != "")
+            {
                 commandText = $"SELECT TOP 1 FileName, EndPosition, LgfEndPosition, Id FROM {_tableName} WHERE FileName = '{filename}' ORDER BY EndPosition DESC";
             }
-
             await using var cmd = _connection.CreateCommand();
             cmd.CommandText = commandText;
 
@@ -108,11 +108,13 @@ namespace OneSTools.EventLog.Exporter.Core.ClickHouse
 
             try
             {
-                await copy.WriteToServerAsync(data, cancellationToken);
+                var columns = new[] { "FileName", "EndPosition", "LgfEndPosition", "Id", "DateTime", "TransactionStatus", "TransactionDate", "TransactionNumber", "UserUuid", "User", "Computer", "Application", "Connection", "Event", "Severity", "Comment", "MetadataUuid", "Metadata", "Data", "DataPresentation", "Server", "MainPort", "AddPort", "Session" };
+                await copy.WriteToServerAsync(data, columns, cancellationToken);
             }
             catch (Exception ex)
             {
                 _logger?.LogError(ex, $"Failed to write data to {_databaseName}.{_tableName}");
+                _logger?.LogError($"Count {entities.Count}\r\nItem:\r\n\r\n{JsonSerializer.Serialize(entities)}\r\n");
                 throw;
             }
 

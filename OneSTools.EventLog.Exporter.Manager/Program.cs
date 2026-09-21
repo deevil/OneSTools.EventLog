@@ -2,7 +2,7 @@ using System.IO;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using OneSTools.EventLog.Exporter.Core;
+using OneSTools.EventLog.Exporter.Core.Log;
 
 namespace OneSTools.EventLog.Exporter.Manager
 {

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Globalization;
 using System.IO;
 using System.Text;
@@ -104,6 +104,15 @@ namespace OneSTools.EventLog
         {
             var parsedData = BracketsParser.ParseBlock(eventLogItemData);
 
+            if (parsedData == null || parsedData.Count < 17)
+                throw new InvalidDataException(
+                    $"Failed to parse event log item in \"{LgpFileName}\" at offset {endPosition}: unexpected block structure ({parsedData?.Count ?? 0} elements). File may be corrupted or position is invalid.");
+
+            var transactionData = parsedData[2];
+            if (transactionData == null || transactionData.Count < 2)
+                throw new InvalidDataException(
+                    $"Failed to parse event log item in \"{LgpFileName}\" at offset {endPosition}: invalid transaction data structure.");
+
             DateTime dateTime = default;
             try
             {
@@ -127,7 +136,6 @@ namespace OneSTools.EventLog
                 LgfEndPosition = _lgfReader.GetPosition()
             };
 
-            var transactionData = parsedData[2];
             eventLogItem.TransactionNumber = Convert.ToInt64(transactionData[1], 16);
 
             var transactionDate = new DateTime().AddSeconds(Convert.ToInt64(transactionData[0], 16) / 10000);
@@ -163,12 +171,12 @@ namespace OneSTools.EventLog
             eventLogItem.Server = _lgfReader.GetObjectValue(ObjectType.Servers, parsedData[13], cancellationToken);
 
             var mainPort = _lgfReader.GetObjectValue(ObjectType.MainPorts, parsedData[14], cancellationToken);
-            if (mainPort != "")
-                eventLogItem.MainPort = int.Parse(mainPort);
+            if (!string.IsNullOrEmpty(mainPort) && int.TryParse(mainPort, out var mp))
+                eventLogItem.MainPort = mp;
 
             var addPort = _lgfReader.GetObjectValue(ObjectType.AddPorts, parsedData[15], cancellationToken);
-            if (addPort != "")
-                eventLogItem.AddPort = int.Parse(addPort);
+            if (!string.IsNullOrEmpty(addPort) && int.TryParse(addPort, out var ap))
+                eventLogItem.AddPort = ap;
 
             eventLogItem.Session = parsedData[16];
 
@@ -177,40 +185,40 @@ namespace OneSTools.EventLog
 
         private static string GetData(BracketsNode node)
         {
+            if (node == null || node.Count == 0)
+                return "";
+
             var dataType = (string)node[0];
 
             switch (dataType)
             {
                 case "R": // Reference
-                    return node[1];
+                    return node.Count > 1 ? (string)node[1] : "";
                 case "U": // Undefined
                     return "";
                 case "S": // String
-                    return node[1];
+                    return node.Count > 1 ? (string)node[1] : "";
                 case "B": // Boolean
-                    return (string)node[1] == "0" ? "false" : "true";
+                    return node.Count > 1 ? ((string)node[1] == "0" ? "false" : "true") : "false";
                 case "P": // Complex data
+                    if (node.Count <= 1) return "";
                     var str = new StringBuilder();
 
                     var subDataNode = node[1];
+                    if (subDataNode == null) return "";
 
-                    //var subDataType = (int)subDataNode[0];
-                    // What's known (subDataNode):
-                    // 1 - additional data of "Authentication (Windows auth) in thin or thick client"
-                    // 2 - additional data of "Authentication in COM connection" event
-                    // 6 - additional data of "Authentication in thin or thick client" event
-                    // 11 - additional data of "Access denied" event
-
-                    // I hope this is temporarily method
                     var subDataCount = subDataNode.Count - 1;
 
                     if (subDataCount > 0)
                         for (var i = 1; i <= subDataCount; i++)
                         {
-                            var value = GetData(subDataNode[i]);
+                            if (i < subDataNode.Count)
+                            {
+                                var value = GetData(subDataNode[i]);
 
-                            if (value != string.Empty)
-                                str.AppendLine($"Item {i}: {value}");
+                                if (value != string.Empty)
+                                    str.AppendLine($"Item {i}: {value}");
+                            }
                         }
 
                     return str.ToString();

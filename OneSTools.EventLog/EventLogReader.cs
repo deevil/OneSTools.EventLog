@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -25,7 +25,7 @@ namespace OneSTools.EventLog
             _lgfReader = new LgfReader(Path.Combine(_settings.LogFolder, "1Cv8.lgf"));
             _lgfReader.SetPosition(settings.LgfStartPosition);
 
-            if (settings.LgpFileName != string.Empty)
+            if (!string.IsNullOrEmpty(settings.LgpFileName))
             {
                 var file = Path.Combine(_settings.LogFolder, settings.LgpFileName);
 
@@ -37,7 +37,7 @@ namespace OneSTools.EventLog
         /// <summary>
         ///     Current reader's "lgp" file name
         /// </summary>
-        public string LgpFileName => _lgpReader.LgpFileName;
+        public string LgpFileName => _lgpReader?.LgpFileName ?? string.Empty;
 
         public void Dispose()
         {
@@ -71,7 +71,7 @@ namespace OneSTools.EventLog
             {
                 try
                 {
-                    item = _lgpReader.ReadNextEventLogItem(cancellationToken);
+                    item = _lgpReader?.ReadNextEventLogItem(cancellationToken);
                 }
                 catch (ObjectDisposedException)
                 {

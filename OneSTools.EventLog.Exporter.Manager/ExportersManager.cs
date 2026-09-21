@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -35,6 +36,7 @@ namespace OneSTools.EventLog.Exporter.Manager
         private readonly int _portion;
         private readonly int _readingTimeout;
         private readonly Dictionary<string, CancellationTokenSource> _runExporters = new();
+        private readonly HashSet<string> _skippedBases = new();
         private readonly string _separation;
 
         private readonly IServiceProvider _serviceProvider;
@@ -120,6 +122,8 @@ namespace OneSTools.EventLog.Exporter.Manager
                 }
             });
 
+            _logger?.LogInformation($"ExportersManager service started. Monitoring {_clstFolders.Count} cluster folder(s)");
+
             foreach (var clstFolder in _clstFolders)
             {
                 var clstWatcher = new ClstWatcher(clstFolder.Folder, clstFolder.Templates);
@@ -133,7 +137,32 @@ namespace OneSTools.EventLog.Exporter.Manager
                 _clstWatchers.Add(clstWatcher);
             }
 
-            await Task.Factory.StartNew(stoppingToken.WaitHandle.WaitOne, stoppingToken);
+            while (!stoppingToken.IsCancellationRequested)
+            {
+                try
+                {
+                    await Task.Delay(60000, stoppingToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
+
+                foreach (var watcher in _clstWatchers)
+                {
+                    foreach (var (key, (name, dataBaseName)) in watcher.InfoBases)
+                    {
+                        bool isRunning;
+                        lock (_runExporters)
+                        {
+                            isRunning = _runExporters.ContainsKey(key);
+                        }
+
+                        if (!isRunning)
+                            StartExporter(key, name, dataBaseName);
+                    }
+                }
+            }
         }
 
         private void ClstWatcher_InfoBasesDeleted(object sender, ClstEventArgs args)
@@ -150,74 +179,150 @@ namespace OneSTools.EventLog.Exporter.Manager
         {
             var logFolder = Path.Combine(path, "1Cv8Log");
 
-            // Check this is an old event log format
-            var lgfPath = Path.Combine(logFolder, "1Cv8.lgf");
-
-            var needStart = File.Exists(lgfPath);
-
-            if (needStart)
+            if (!Directory.Exists(logFolder))
             {
-                lock (_runExporters)
+                lock (_skippedBases)
                 {
-                    if (!_runExporters.ContainsKey(path))
+                    if (_skippedBases.Add(path))
+                        _logger?.LogWarning($"Event log folder of \"{name}\" information base doesn't exist, skipping");
+                }
+                return;
+            }
+
+            var lgdPath = Path.Combine(logFolder, "1Cv8.lgd");
+            var lgfPath = Path.Combine(logFolder, "1Cv8.lgf");
+            var hasLgpFiles = Directory.EnumerateFiles(logFolder, "*.lgp").Any();
+
+            var isPureSqlite = File.Exists(lgdPath) && !hasLgpFiles;
+            var isMissingFiles = !File.Exists(lgfPath) && !hasLgpFiles;
+
+            if (isPureSqlite || isMissingFiles)
+            {
+                lock (_skippedBases)
+                {
+                    if (_skippedBases.Add(path))
                     {
-                        var cts = new CancellationTokenSource();
-                        var logger =
-                            (ILogger<EventLogExporter>)_serviceProvider.GetService(typeof(ILogger<EventLogExporter>));
+                        if (isPureSqlite)
+                            _logger?.LogWarning(
+                                $"Event log of \"{name}\" information base is in SQLite format (1Cv8.lgd) with no .lgp files, skipping");
+                        else
+                            _logger?.LogWarning(
+                                $"Event log of \"{name}\" information base has no 1Cv8.lgf or .lgp files, skipping");
+                    }
+                }
+                return;
+            }
 
-                        var settings = new EventLogExporterSettings
-                        {
-                            LogFolder = logFolder,
-                            CollectedFactor = _collectedFactor,
-                            LoadArchive = _loadArchive,
-                            Portion = _portion,
-                            ReadingTimeout = _readingTimeout,
-                            TimeZone = _timeZone,
-                            WritingMaxDop = _writingMaxDop,
-                            SkipEventsBeforeDate = _skipEventsBeforeDate
-                        };
+            lock (_skippedBases)
+            {
+                _skippedBases.Remove(path);
+            }
 
-                        Task.Factory.StartNew(async () =>
+            lock (_runExporters)
+            {
+                if (!_runExporters.ContainsKey(path))
+                {
+                    var cts = new CancellationTokenSource();
+                    var logger =
+                        (ILogger<EventLogExporter>)_serviceProvider.GetService(typeof(ILogger<EventLogExporter>));
+
+                    var settings = new EventLogExporterSettings
+                    {
+                        LogFolder = logFolder,
+                        CollectedFactor = _collectedFactor,
+                        LoadArchive = _loadArchive,
+                        Portion = _portion,
+                        ReadingTimeout = _readingTimeout,
+                        TimeZone = _timeZone,
+                        WritingMaxDop = _writingMaxDop,
+                        SkipEventsBeforeDate = _skipEventsBeforeDate
+                    };
+
+                    Task.Factory.StartNew(async () =>
+                    {
+                        int consecutiveFailures = 0;
+
+                        while (!cts.Token.IsCancellationRequested)
                         {
-                            while (!cts.Token.IsCancellationRequested)
+                            var runTimer = Stopwatch.StartNew();
+
+                            try
+                            {
+                                using var storage = GetStorage(dataBaseName);
+                                using var exporter = new EventLogExporter(settings, storage, logger, dataBaseName);
+                                await exporter.StartAsync(cts.Token);
+
+                                if (runTimer.Elapsed > TimeSpan.FromMinutes(1))
+                                    consecutiveFailures = 0;
+                            }
+                            catch (TaskCanceledException)
+                            {
+                            }
+                            catch (OperationCanceledException)
+                            {
+                            }
+                            catch (Exception ex)
+                            {
+                                consecutiveFailures++;
+                                _logger?.LogCritical(ex, $"Failed to execute EventLogExporter for \"{name}\" (attempt {consecutiveFailures})");
+
+                                var delayMs = consecutiveFailures switch
+                                {
+                                    1 => 5000,
+                                    2 => 15000,
+                                    3 => 30000,
+                                    4 => 60000,
+                                    _ => 300000 // 5 minutes max
+                                };
+
+                                _logger?.LogWarning($"Waiting {delayMs / 1000}s before restarting exporter for \"{name}\"...");
+
+                                try
+                                {
+                                    await Task.Delay(delayMs, cts.Token);
+                                }
+                                catch (OperationCanceledException)
+                                {
+                                    break;
+                                }
+                                continue;
+                            }
+
+                            if (!cts.Token.IsCancellationRequested)
                             {
                                 try
                                 {
-                                    using var storage = GetStorage(dataBaseName);
-                                    using var exporter = new EventLogExporter(settings, storage, logger);
-                                    await exporter.StartAsync(cts.Token);
+                                    await Task.Delay(5000, cts.Token);
                                 }
-                                catch (TaskCanceledException)
+                                catch (OperationCanceledException)
                                 {
+                                    break;
                                 }
-                                catch (Exception ex)
-                                {
-                                    _logger?.LogCritical(ex, "Failed to execute EventLogExporter");
-                                }
-                                await Task.Delay(5000);
                             }
-                        }, cts.Token);
-                        _runExporters.Add(path, cts);
+                        }
+                    }, cts.Token);
+                    _runExporters.Add(path, cts);
 
-                        _logger?.LogInformation(
-                            $"Event log exporter for \"{name}\" information base to \"{dataBaseName}\" is started");
-                    }
+                    _logger?.LogInformation(
+                        $"Event log exporter for \"{name}\" information base to \"{dataBaseName}\" is started");
                 }
-            }
-            else
-            {
-                _logger?.LogInformation(
-                    $"Event log of \"{name}\" information base is in \"new\" format, it won't be handled");
             }
         }
 
         private void StopExporter(string id, string name)
         {
+            lock (_skippedBases)
+            {
+                _skippedBases.Remove(id);
+            }
+
             lock (_runExporters)
             {
                 if (_runExporters.TryGetValue(id, out var cts))
                 {
                     cts.Cancel();
+                    cts.Dispose();
+                    _runExporters.Remove(id);
                     _logger?.LogInformation($"Event log exporter for \"{name}\" information base is stopped");
                 }
             }
@@ -261,6 +366,22 @@ namespace OneSTools.EventLog.Exporter.Manager
         public override void Dispose()
         {
             base.Dispose();
+
+            lock (_runExporters)
+            {
+                foreach (var ib in _runExporters)
+                {
+                    try
+                    {
+                        ib.Value.Cancel();
+                        ib.Value.Dispose();
+                    }
+                    catch
+                    {
+                    }
+                }
+                _runExporters.Clear();
+            }
 
             foreach (var clstWatcher in _clstWatchers)
                 clstWatcher?.Dispose();

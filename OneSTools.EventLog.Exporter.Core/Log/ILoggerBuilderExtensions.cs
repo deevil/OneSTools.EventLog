@@ -1,6 +1,6 @@
 ﻿using Microsoft.Extensions.Logging;
 
-namespace OneSTools.EventLog.Exporter.Core
+namespace OneSTools.EventLog.Exporter.Core.Log
 {
     public static class LoggerBuilderExtensions
     {
