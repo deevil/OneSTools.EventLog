@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -8,6 +9,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using NodaTime;
+using OneSTools.EventLog;
 using OneSTools.EventLog.Exporter.Core;
 using OneSTools.EventLog.Exporter.Core.ClickHouse;
 using OneSTools.EventLog.Exporter.Core.ElasticSearch;
@@ -239,13 +241,20 @@ namespace OneSTools.EventLog.Exporter.Manager
 
                     Task.Factory.StartNew(async () =>
                     {
+                        int consecutiveFailures = 0;
+
                         while (!cts.Token.IsCancellationRequested)
                         {
+                            var runTimer = Stopwatch.StartNew();
+
                             try
                             {
                                 using var storage = GetStorage(dataBaseName);
                                 using var exporter = new EventLogExporter(settings, storage, logger, dataBaseName);
                                 await exporter.StartAsync(cts.Token);
+
+                                if (runTimer.Elapsed > TimeSpan.FromMinutes(1))
+                                    consecutiveFailures = 0;
                             }
                             catch (TaskCanceledException)
                             {
@@ -253,9 +262,47 @@ namespace OneSTools.EventLog.Exporter.Manager
                             catch (OperationCanceledException)
                             {
                             }
+                            catch (EventLogPositionInvalidException ex)
+                            {
+                                _logger?.LogCritical(ex.Message);
+                                _logger?.LogWarning(
+                                    $"Exporter for \"{name}\" paused for 10 minutes due to invalid file position. Fix the stored position or file to resume.");
+
+                                try
+                                {
+                                    await Task.Delay(TimeSpan.FromMinutes(10), cts.Token);
+                                }
+                                catch (OperationCanceledException)
+                                {
+                                    break;
+                                }
+                                continue;
+                            }
                             catch (Exception ex)
                             {
-                                _logger?.LogCritical(ex, "Failed to execute EventLogExporter");
+                                consecutiveFailures++;
+                                _logger?.LogCritical(ex, $"Failed to execute EventLogExporter for \"{name}\" (attempt {consecutiveFailures})");
+
+                                var delayMs = consecutiveFailures switch
+                                {
+                                    1 => 5000,
+                                    2 => 15000,
+                                    3 => 30000,
+                                    4 => 60000,
+                                    _ => 300000 // 5 minutes max
+                                };
+
+                                _logger?.LogWarning($"Waiting {delayMs / 1000}s before restarting exporter for \"{name}\"...");
+
+                                try
+                                {
+                                    await Task.Delay(delayMs, cts.Token);
+                                }
+                                catch (OperationCanceledException)
+                                {
+                                    break;
+                                }
+                                continue;
                             }
 
                             if (!cts.Token.IsCancellationRequested)
