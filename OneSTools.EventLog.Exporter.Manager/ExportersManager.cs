@@ -121,7 +121,7 @@ namespace OneSTools.EventLog.Exporter.Manager
                 }
             });
 
-            _logger?.LogWarning($"ExportersManager service started. Monitoring {_clstFolders.Count} cluster folder(s)");
+            _logger?.LogInformation($"ExportersManager service started. Monitoring {_clstFolders.Count} cluster folder(s)");
 
             foreach (var clstFolder in _clstFolders)
             {
@@ -273,7 +273,7 @@ namespace OneSTools.EventLog.Exporter.Manager
                     }, cts.Token);
                     _runExporters.Add(path, cts);
 
-                    _logger?.LogWarning(
+                    _logger?.LogInformation(
                         $"Event log exporter for \"{name}\" information base to \"{dataBaseName}\" is started");
                 }
             }
@@ -293,7 +293,7 @@ namespace OneSTools.EventLog.Exporter.Manager
                     cts.Cancel();
                     cts.Dispose();
                     _runExporters.Remove(id);
-                    _logger?.LogWarning($"Event log exporter for \"{name}\" information base is stopped");
+                    _logger?.LogInformation($"Event log exporter for \"{name}\" information base is stopped");
                 }
             }
         }
