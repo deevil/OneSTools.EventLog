@@ -150,64 +150,89 @@ namespace OneSTools.EventLog.Exporter.Manager
         {
             var logFolder = Path.Combine(path, "1Cv8Log");
 
+            if (!Directory.Exists(logFolder))
+            {
+                _logger?.LogInformation($"Event log folder of \"{name}\" information base doesn't exist, it won't be handled");
+                return;
+            }
+
+            // Check if this is a new SQLite event log format
+            var lgdPath = Path.Combine(logFolder, "1Cv8.lgd");
+            if (File.Exists(lgdPath))
+            {
+                _logger?.LogInformation(
+                    $"Event log of \"{name}\" information base is in SQLite format (1Cv8.lgd), it won't be handled");
+                return;
+            }
+
             // Check this is an old event log format
             var lgfPath = Path.Combine(logFolder, "1Cv8.lgf");
-
-            var needStart = File.Exists(lgfPath);
-
-            if (needStart)
+            if (!File.Exists(lgfPath))
             {
-                lock (_runExporters)
+                _logger?.LogInformation(
+                    $"Event log of \"{name}\" information base is in \"new\" format (1Cv8.lgf not found), it won't be handled");
+                return;
+            }
+
+            lock (_runExporters)
+            {
+                if (!_runExporters.ContainsKey(path))
                 {
-                    if (!_runExporters.ContainsKey(path))
+                    var cts = new CancellationTokenSource();
+                    var logger =
+                        (ILogger<EventLogExporter>)_serviceProvider.GetService(typeof(ILogger<EventLogExporter>));
+
+                    var settings = new EventLogExporterSettings
                     {
-                        var cts = new CancellationTokenSource();
-                        var logger =
-                            (ILogger<EventLogExporter>)_serviceProvider.GetService(typeof(ILogger<EventLogExporter>));
+                        LogFolder = logFolder,
+                        CollectedFactor = _collectedFactor,
+                        LoadArchive = _loadArchive,
+                        Portion = _portion,
+                        ReadingTimeout = _readingTimeout,
+                        TimeZone = _timeZone,
+                        WritingMaxDop = _writingMaxDop,
+                        SkipEventsBeforeDate = _skipEventsBeforeDate
+                    };
 
-                        var settings = new EventLogExporterSettings
+                    Task.Factory.StartNew(async () =>
+                    {
+                        while (!cts.Token.IsCancellationRequested)
                         {
-                            LogFolder = logFolder,
-                            CollectedFactor = _collectedFactor,
-                            LoadArchive = _loadArchive,
-                            Portion = _portion,
-                            ReadingTimeout = _readingTimeout,
-                            TimeZone = _timeZone,
-                            WritingMaxDop = _writingMaxDop,
-                            SkipEventsBeforeDate = _skipEventsBeforeDate
-                        };
+                            try
+                            {
+                                using var storage = GetStorage(dataBaseName);
+                                using var exporter = new EventLogExporter(settings, storage, logger, dataBaseName);
+                                await exporter.StartAsync(cts.Token);
+                            }
+                            catch (TaskCanceledException)
+                            {
+                            }
+                            catch (OperationCanceledException)
+                            {
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger?.LogCritical(ex, "Failed to execute EventLogExporter");
+                            }
 
-                        Task.Factory.StartNew(async () =>
-                        {
-                            while (!cts.Token.IsCancellationRequested)
+                            if (!cts.Token.IsCancellationRequested)
                             {
                                 try
                                 {
-                                    using var storage = GetStorage(dataBaseName);
-                                    using var exporter = new EventLogExporter(settings, storage, logger, dataBaseName);
-                                    await exporter.StartAsync(cts.Token);
+                                    await Task.Delay(5000, cts.Token);
                                 }
-                                catch (TaskCanceledException)
+                                catch (OperationCanceledException)
                                 {
+                                    break;
                                 }
-                                catch (Exception ex)
-                                {
-                                    _logger?.LogCritical(ex, "Failed to execute EventLogExporter");
-                                }
-                                await Task.Delay(5000);
                             }
-                        }, cts.Token);
-                        _runExporters.Add(path, cts);
+                        }
+                    }, cts.Token);
+                    _runExporters.Add(path, cts);
 
-                        _logger?.LogInformation(
-                            $"Event log exporter for \"{name}\" information base to \"{dataBaseName}\" is started");
-                    }
+                    _logger?.LogInformation(
+                        $"Event log exporter for \"{name}\" information base to \"{dataBaseName}\" is started");
                 }
-            }
-            else
-            {
-                _logger?.LogInformation(
-                    $"Event log of \"{name}\" information base is in \"new\" format, it won't be handled");
             }
         }
 
@@ -218,6 +243,8 @@ namespace OneSTools.EventLog.Exporter.Manager
                 if (_runExporters.TryGetValue(id, out var cts))
                 {
                     cts.Cancel();
+                    cts.Dispose();
+                    _runExporters.Remove(id);
                     _logger?.LogInformation($"Event log exporter for \"{name}\" information base is stopped");
                 }
             }
@@ -261,6 +288,22 @@ namespace OneSTools.EventLog.Exporter.Manager
         public override void Dispose()
         {
             base.Dispose();
+
+            lock (_runExporters)
+            {
+                foreach (var ib in _runExporters)
+                {
+                    try
+                    {
+                        ib.Value.Cancel();
+                        ib.Value.Dispose();
+                    }
+                    catch
+                    {
+                    }
+                }
+                _runExporters.Clear();
+            }
 
             foreach (var clstWatcher in _clstWatchers)
                 clstWatcher?.Dispose();

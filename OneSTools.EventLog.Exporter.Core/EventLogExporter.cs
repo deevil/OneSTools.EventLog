@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -36,6 +36,8 @@ namespace OneSTools.EventLog.Exporter.Core
         // DataFlow blocks
         private EventLogReader _eventLogReader;
         private ActionBlock<EventLogItem[]> _writeBlock;
+        private IDisposable _dataflowLink;
+        private CancellationTokenSource _linkedCts;
 
         private string _database = "";
 
@@ -112,18 +114,21 @@ namespace OneSTools.EventLog.Exporter.Core
 
             _logger?.LogInformation($"{_database}Portion per request: {_portion}");
 
-            InitializeDataflow(cancellationToken);
+            _linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            var token = _linkedCts.Token;
+
+            InitializeDataflow(token);
 
             try
             {
-                var settings = await GetReaderSettingsAsync(cancellationToken);
+                var settings = await GetReaderSettingsAsync(token);
                 _eventLogReader = new EventLogReader(settings);
                 
                 // Init file reader
                 _currentLgpFile = settings.LgpFileName;
                 _logger?.LogInformation($"{_database}Reader started reading {_eventLogReader.LgpFileName}");
 
-                while (!cancellationToken.IsCancellationRequested && !_writeBlock.Completion.IsCompleted)
+                while (!token.IsCancellationRequested && !_writeBlock.Completion.IsCompleted)
                 {
                     var forceSending = false;
 
@@ -131,7 +136,7 @@ namespace OneSTools.EventLog.Exporter.Core
 
                     try
                     {
-                        item = _eventLogReader.ReadNextEventLogItem(cancellationToken);
+                        item = _eventLogReader.ReadNextEventLogItem(token);
                     }
                     catch (EventLogReaderTimeoutException)
                     {
@@ -158,7 +163,7 @@ namespace OneSTools.EventLog.Exporter.Core
                             // Need fix batch
                             forceSending = true;
 
-                            var newPos = await _storage.ReadEventLogPositionAsync(cancellationToken, _eventLogReader.LgpFileName);
+                            var newPos = await _storage.ReadEventLogPositionAsync(token, _eventLogReader.LgpFileName);
                             if (newPos != null) {
                                 _currentPos = newPos;
                             } else {
@@ -166,8 +171,13 @@ namespace OneSTools.EventLog.Exporter.Core
                             }
                         }
 
-                        if (item.EndPosition > _currentPos.EndPosition) {
-                            await SendAsync(_batchBlock, item, cancellationToken);
+                        if (_currentPos == null)
+                        {
+                            _currentPos = new EventLogPosition(item.FileName, 0, item.LgfEndPosition, item.Id);
+                            await SendAsync(_batchBlock, item, token);
+                        }
+                        else if (item.EndPosition > _currentPos.EndPosition) {
+                            await SendAsync(_batchBlock, item, token);
                         } else {
                             _counterSkip++;
                             _eventLogReader.BackId();
@@ -183,8 +193,14 @@ namespace OneSTools.EventLog.Exporter.Core
                     if (forceSending)
                         _batchBlock.TriggerBatch();
                 }
+
+                _batchBlock.Complete();
+                await _writeBlock.Completion;
             }
             catch (TaskCanceledException)
+            {
+            }
+            catch (OperationCanceledException)
             {
             }
         }
@@ -220,7 +236,7 @@ namespace OneSTools.EventLog.Exporter.Core
             writeBlockSettings);
 
             _batchBlock = new BatchBlock<EventLogItem>(_portion, batchBlockSettings);
-            _batchBlock.LinkTo(_writeBlock, new DataflowLinkOptions { PropagateCompletion = true });
+            _dataflowLink = _batchBlock.LinkTo(_writeBlock, new DataflowLinkOptions { PropagateCompletion = true });
         }
 
         private async Task<EventLogReaderSettings> GetReaderSettingsAsync(CancellationToken cancellationToken = default)
@@ -285,9 +301,38 @@ namespace OneSTools.EventLog.Exporter.Core
             if (_disposedValue)
                 return;
 
-            if (disposing) _storage?.Dispose();
+            if (disposing)
+            {
+                try
+                {
+                    _batchBlock?.TriggerBatch();
+                    _batchBlock?.Complete();
+                    _writeBlock?.Complete();
+                }
+                catch
+                {
+                }
 
-            _eventLogReader?.Dispose();
+                _dataflowLink?.Dispose();
+                _dataflowLink = null;
+
+                try
+                {
+                    _linkedCts?.Cancel();
+                }
+                catch
+                {
+                }
+                _linkedCts?.Dispose();
+                _linkedCts = null;
+
+                _storage?.Dispose();
+                _eventLogReader?.Dispose();
+
+                _batchBlock = null;
+                _writeBlock = null;
+                _eventLogReader = null;
+            }
 
             _disposedValue = true;
         }

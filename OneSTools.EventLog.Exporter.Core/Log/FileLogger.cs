@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Linq;
 using Microsoft.Extensions.Logging;
@@ -43,6 +43,9 @@ namespace OneSTools.EventLog.Exporter.Core.Log
         {
             var levelName = Enum.GetName(typeof(LogLevel), logLevel);
             var message = $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} | {levelName} | {_shortCN}[{eventId.Id}] | {formatter(state, exception)}";
+
+            if (exception != null)
+                message += Environment.NewLine + exception;
 
             lock (Locker)
             {
